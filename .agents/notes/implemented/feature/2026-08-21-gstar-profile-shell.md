@@ -16,6 +16,8 @@ The GSTAR shell treats one durable DSH Workspace as one station workspace. It re
 
 Region assets form a separate domain keyed by `workspaceId`, allowing one station Workspace to own several AOIs. Agent conversation later returns through a GSTAR-owned slot, so GSTAR does not depend on the standard layout's private slot tree.
 
+Station identity is formalized as the provider-neutral `ctx.gstarSites` Service Definition. The shipped `dsh-gstar-site-workspace` Provider projects immutable station snapshots from `ctx.workspaceRegistry`, delegates creation to that registry, and publishes `gstarSites.list` and `gstarSites.create` through concrete Typert Remote adapters. Workspace remains the single durable authority; GSTAR does not create a parallel station table.
+
 ## Alternatives considered
 
 **Host GSTAR as a standalone Web application beside DSH.** Rejected because it would duplicate the Web Host, persistence, workspace projection, permissions, and plugin loading lifecycle, and browser-local state could not serve as the authoritative GSTAR runtime.
@@ -28,6 +30,8 @@ Region assets form a separate domain keyed by `workspaceId`, allowing one statio
 
 CLI tests pin the `gstar` alias and app-argument boundary. App Boot tests pin the shipped bundle order. The GSTAR client apply test mounts the real `SlotRegistry`, verifies exclusive root ownership, and proves disposal; component tests project Workspace snapshots and navigation copy without fabricated domain records. The assembled configuration remains inspectable through `dsh gstar --dump-config`.
 
+The station Service Definition test pins service publication, disposal, and Remote delegation. The Workspace Provider test runs through a real Loader/Include composition and verifies ordered projection plus delegated creation.
+
 ## Consequences
 
-The first `gstar` composition boots into a real Workspace-backed station surface without forking Web infrastructure or changing the generic Workspace contract. Product navigation can land before each data-plane service, while each unavailable domain stays explicit. The temporary cost is that source, gate, and pipeline navigation show service placeholders and Workspace creation remains disabled until station-profile creation can be atomic.
+The first `gstar` composition boots into a real Workspace-backed station surface without forking Web infrastructure or changing the generic Workspace contract. Product navigation can land before each data-plane service, while each unavailable domain stays explicit. The temporary cost is that source, gate, and pipeline navigation show service placeholders and station creation remains disabled in the browser until the GSTAR Client Remote assembly consumes the Host service.

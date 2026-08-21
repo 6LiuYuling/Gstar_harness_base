@@ -1,6 +1,12 @@
 # GSTAR presentation overlay. Host transport, storage, Workspace, Client
 # runtime, theme, locale, and renderer continue to come from dsh-web-app.
 
+- insert:
+    # Workspace remains the durable station authority. This GSTAR provider
+    # publishes the station-shaped Host and Remote capability over it.
+    - id: gstar-sites
+      name: '@deepseek-ai/dsh-gstar-site-workspace'
+
 - id: ui-layout
   name: '@deepseek-ai/dsh-client-ui-gstar'
 

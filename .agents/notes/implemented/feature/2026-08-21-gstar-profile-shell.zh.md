@@ -16,6 +16,8 @@ GSTAR Shell 把一个持久化 DSH Workspace 视为一个局点工作区。它�
 
 区域资产属于独立领域，并以 `workspaceId` 关联局点，使一个局点 Workspace 能够拥有多个 AOI。Agent 对话后续通过 GSTAR 自有 slot 恢复，因此 GSTAR 不依赖标准布局的私有 slot 树。
 
+局点身份通过与 Provider 无关的 `ctx.gstarSites` Service Definition 正式建立。随 `gstar` 交付的 `dsh-gstar-site-workspace` Provider 从 `ctx.workspaceRegistry` 投影不可变局点快照，把创建操作委托给该注册表，并通过具体的 Typert Remote 适配器发布 `gstarSites.list` 和 `gstarSites.create`。Workspace 始终是唯一持久化权威，GSTAR 不创建平行的局点表。
+
 ## Alternatives considered
 
 **在 DSH 旁独立托管 GSTAR Web 应用。** 不予采用，因为它会重复实现 Web Host、持久化、Workspace 投影、权限和插件加载生命周期，而浏览器本地状态不能成为 GSTAR 的权威运行时。
@@ -28,6 +30,8 @@ GSTAR Shell 把一个持久化 DSH Workspace 视为一个局点工作区。它�
 
 CLI 测试固定 `gstar` 别名和应用参数边界，App Boot 测试固定随附 Bundle 顺序。GSTAR 客户端 apply 测试挂载真实 `SlotRegistry`，验证根 slot 的唯一占用并证明销毁回收；组件测试验证 Workspace 快照投影和导航文案，不构造虚假的领域记录。完整组合配置可通过 `dsh gstar --dump-config` 检查。
 
+局点 Service Definition 测试固定服务发布、销毁与 Remote 委托。Workspace Provider 测试通过真实 Loader/Include 组合运行，并验证有序投影及创建委托。
+
 ## Consequences
 
-第一阶段 `gstar` 组合无需复制 Web 基础设施或修改通用 Workspace 约定，即可启动为基于真实 Workspace 的局点界面。产品导航可以先于各数据能力出现，同时每个尚不可用的领域都保持明确。代价是数据源、门禁和流水线入口暂时显示服务占位，且在局点领域能够原子创建并校验局点档案之前，Workspace 创建入口保持禁用。
+第一阶段 `gstar` 组合无需复制 Web 基础设施或修改通用 Workspace 约定，即可启动为基于真实 Workspace 的局点界面。产品导航可以先于各数据能力出现，同时每个尚不可用的领域都保持明确。代价是数据源、门禁和流水线入口暂时显示服务占位，且在 GSTAR Client Remote 组合消费 Host 服务之前，浏览器中的局点创建入口保持禁用。
