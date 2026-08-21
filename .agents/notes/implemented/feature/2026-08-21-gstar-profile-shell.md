@@ -18,6 +18,8 @@ Region assets form a separate domain keyed by `workspaceId`, allowing one statio
 
 Station identity is formalized as the provider-neutral `ctx.gstarSites` Service Definition. The shipped `dsh-gstar-site-workspace` Provider projects immutable station snapshots from `ctx.workspaceRegistry`, delegates creation to that registry, and publishes `gstarSites.list` and `gstarSites.create` through concrete Typert Remote adapters. Workspace remains the single durable authority; GSTAR does not create a parallel station table.
 
+`dsh-gstar-client-remotes` selects the generated site contribution only for the `gstar` Profile and mounts it into DSH's standard Client Remote carrier. `ui-gstar` injects a `createSite` action into its pure root component; the action crosses `ctx.remote.gstarSites.create`, while live list reads remain on the standard Workspace projection. The generic `dsh web` assembly is unchanged.
+
 ## Alternatives considered
 
 **Host GSTAR as a standalone Web application beside DSH.** Rejected because it would duplicate the Web Host, persistence, workspace projection, permissions, and plugin loading lifecycle, and browser-local state could not serve as the authoritative GSTAR runtime.
@@ -32,6 +34,10 @@ CLI tests pin the `gstar` alias and app-argument boundary. App Boot tests pin th
 
 The station Service Definition test pins service publication, disposal, and Remote delegation. The Workspace Provider test runs through a real Loader/Include composition and verifies ordered projection plus delegated creation.
 
+The GSTAR Client assembly test pins generated contribution mount/disposal. UI apply tests pin exact Remote dependencies and success/error envelope handling; the component test drives the injected station-create action through the inline form.
+
+The package Model Experience audit classifies the GSTAR Bundle, UI, Service Definition, Workspace Provider, and Client Remote assembly as model-neutral contributions.
+
 ## Consequences
 
-The first `gstar` composition boots into a real Workspace-backed station surface without forking Web infrastructure or changing the generic Workspace contract. Product navigation can land before each data-plane service, while each unavailable domain stays explicit. The temporary cost is that source, gate, and pipeline navigation show service placeholders and station creation remains disabled in the browser until the GSTAR Client Remote assembly consumes the Host service.
+The first `gstar` composition boots into a real Workspace-backed station surface without forking Web infrastructure or changing the generic Workspace contract. Product navigation can land before each data-plane service, while each unavailable domain stays explicit. Station creation now crosses the DSH Host/Remote/Client boundaries and persists through Workspace. The temporary cost is that source, gate, and pipeline navigation still show service placeholders, and the create form accepts a Host path until the directory-picker contribution is mounted.

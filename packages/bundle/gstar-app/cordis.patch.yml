@@ -7,6 +7,11 @@
     - id: gstar-sites
       name: '@deepseek-ai/dsh-gstar-site-workspace'
 
+    # Browser-only Remote contribution: mounts `gstarSites` into the standard
+    # DSH Client carrier without adding GSTAR namespaces to `dsh web`.
+    - id: gstar-client-remotes
+      name: '@deepseek-ai/dsh-gstar-client-remotes'
+
 - id: ui-layout
   name: '@deepseek-ai/dsh-client-ui-gstar'
 

@@ -8,7 +8,7 @@ The provider owns no second station table and never copies Workspace records int
 
 ## Model Experience
 
-None. The provider contributes no model-visible input.
+None, as the Provider contributes no model-visible input.
 
 #### KV Cache effect
 

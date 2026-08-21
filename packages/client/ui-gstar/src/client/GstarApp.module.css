@@ -65,6 +65,45 @@
 .sectionTitle h2 { margin: 0; font-size: 22px; }
 .sectionTitle button { border-color: var(--dsw-alias-border-l2); }
 .sectionTitle button:disabled { cursor: not-allowed; opacity: .55; }
+.createForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: end;
+  margin: 0 0 18px;
+  padding: 18px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+.createForm label { display: flex; min-width: 0; flex-direction: column; gap: 7px; }
+.createForm label span { color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.createForm input {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 9px;
+  outline: none;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-label-primary);
+}
+.createForm input:focus { border-color: var(--dsw-alias-brand-primary); }
+.createForm button {
+  padding: 10px 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 9px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+.createForm button[type='submit'] {
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-brand-primary-invert);
+}
+.createForm button:disabled { cursor: wait; opacity: .65; }
+.createForm p { grid-column: 1 / -1; margin: 0; color: var(--dsw-alias-state-error-primary); font-size: 13px; }
+.createStatus { margin: -6px 0 18px; color: var(--dsw-alias-state-success-primary); font-size: 13px; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .card { padding: 20px; }
 .cardTop { display: flex; justify-content: space-between; color: var(--dsw-alias-label-tertiary); font-size: 12px; }
@@ -84,10 +123,12 @@
   .environment { display: none; }
   .main { width: min(100% - 28px, 1180px); padding-top: 34px; }
   .hero h1 { font-size: 30px; }
+  .createForm { grid-template-columns: 1fr 1fr; }
   .metrics, .grid { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 560px) {
+  .createForm { grid-template-columns: 1fr; }
   .metrics, .grid { grid-template-columns: 1fr; }
   .card dl { grid-template-columns: 1fr; }
 }

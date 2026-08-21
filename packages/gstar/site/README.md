@@ -10,7 +10,7 @@ Provider-neutral GSTAR station Service Definition on `ctx.gstarSites`. A station
 
 ## Model Experience
 
-None. The station service registers no tool, prompt section, Session event, or other model-visible input.
+None, as the station service registers no tool, prompt section, Session event, or other model-visible input.
 
 #### KV Cache effect
 
