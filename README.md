@@ -12,6 +12,20 @@ DeepSeek Harness is currently in _developer preview_ and is iterating rapidly. *
 
 ## Run
 
+### Run the GSTAR profile from this repository
+
+The GSTAR application is a shipped DSH profile. It keeps the standard DSH Host, persistence, Agent, tool, and browser-plugin runtime, then replaces the Web root slot through the `dsh-gstar-app` bundle.
+
+```sh
+git clone https://github.com/6LiuYuling/Gstar_harness_base.git
+cd Gstar_harness_base
+pnpm install
+pnpm run build
+pnpm dsh gstar
+```
+
+The command starts GSTAR at `http://127.0.0.1:3080` and opens it in the default browser. Use `pnpm dsh gstar --no-open` to keep the server in the foreground without opening a browser, or `pnpm dsh gstar --dump-config` to inspect the complete Cordis plugin tree without booting it.
+
 ### Run from `npm`
 
 Install `Node.js`, then run:
