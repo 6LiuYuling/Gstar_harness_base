@@ -99,6 +99,7 @@
       "@deepseek-ai/dsh-gstar-site/types": ["./packages/gstar/site/src/types.ts"],
       "@deepseek-ai/dsh-gstar-site-workspace": ["./packages/gstar/site-workspace/src"],
       "@deepseek-ai/dsh-gstar-site-workspace/invariant": ["./packages/gstar/site-workspace/src/invariant.ts"],
+      "@deepseek-ai/dsh-workspace/types": ["./packages/workspace/workspace/src/types.ts"],
       "@deepseek-ai/dsh-session-reference/types": ["./packages/context/session-reference/src/types.ts"],
       "@deepseek-ai/dsh-tools/presentation": ["./packages/core/tools/src/presentation.ts"],
       "@deepseek-ai/dsh-tools/types": ["./packages/core/tools/src/types.ts"],
