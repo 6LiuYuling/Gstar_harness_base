@@ -29,7 +29,12 @@ function workspace(id: string, path: string, title: string): Workspace {
     sessionIds: [],
     createdAt: '2026-08-20T08:00:00.000Z',
     updatedAt: '2026-08-21T08:00:00.000Z',
-  } as Workspace
+    async setTitle() {},
+    async attachSession() {},
+    async insertSessionBefore() {},
+    async detachSession() {},
+    async status() { return 'ok' },
+  }
 }
 
 describe('gstar-site-workspace through a real Loader composition', () => {
