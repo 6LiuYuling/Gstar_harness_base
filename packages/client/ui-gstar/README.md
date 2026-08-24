@@ -2,9 +2,9 @@
 
 English | [中文](README.zh.md)
 
-GSTAR browser root shell. It occupies the built-in `root` slot and projects durable DSH Workspaces as station workspaces. Unavailable region, source, gate, and pipeline metrics remain pending instead of manufacturing product data in React.
+GSTAR browser root shell. It occupies the built-in `root` slot and renders the Host-classified `gstarSites.list` projection, so generic `dsh web` Workspaces do not enter the station surface. Unavailable region, source, gate, and pipeline metrics remain pending instead of manufacturing product data in React.
 
-The registering Client plugin injects a `createSite` action into the pure root component. That action calls `ctx.remote.gstarSites.create`; successful creation remains durable in the Host Workspace registry, while the standard Workspace projection supplies the live station list. React never owns the authoritative station state.
+The registering Client plugin owns a React-free station runtime backed by the GSTAR Remote namespace. It loads `gstarSites.list`, exposes an immutable snapshot store, and refreshes after `gstarSites.create`; React never owns or filters the authoritative station membership.
 
 ## Model Experience
 

@@ -1,14 +1,20 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore, type WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
+import type { GstarSiteSnapshot } from '@deepseek-ai/dsh-gstar-site/types'
 import { GstarApp, type GstarAppProps } from '../src/client/GstarApp.tsx'
+import type { GstarSiteListState } from '../src/client/site-runtime.ts'
 
 afterEach(cleanup)
 
-function props(items: WorkspaceListState['items'] = [], createSite = vi.fn()): GstarAppProps {
+function props(
+  items: readonly GstarSiteSnapshot[] = [],
+  createSite = vi.fn(),
+  workspaces: WorkspaceListState['items'] = [],
+): GstarAppProps {
   const state: WorkspaceListState = {
-    items,
+    items: workspaces,
     archivedSessionIds: [],
     state: 'idle',
     phase: 'ready',
@@ -18,6 +24,7 @@ function props(items: WorkspaceListState['items'] = [], createSite = vi.fn()): G
   }
   return {
     createSite,
+    sites: createSnapshotStore<GstarSiteListState>({ items, phase: 'ready' }),
     useWorkspaces: <S,>(selector: (value: WorkspaceListState) => S) => selector(state),
     useSessions: () => undefined,
     useProjection: () => undefined,
@@ -25,12 +32,19 @@ function props(items: WorkspaceListState['items'] = [], createSite = vi.fn()): G
 }
 
 describe('GstarApp', () => {
-  it('projects real Workspaces as station workspaces without inventing region counts', () => {
+  it('projects only Host-classified stations without leaking ordinary Workspaces', () => {
     render(<GstarApp {...props([{
       workspaceId: 'workspace-1',
       path: '/data/stations/guangzhou',
       title: '中国 · 广州局点',
-      sessionIds: ['session-1'],
+      sessionCount: 1,
+      createdAt: '2026-08-20T08:00:00.000Z',
+      updatedAt: '2026-08-21T08:00:00.000Z',
+    } as never], vi.fn(), [{
+      workspaceId: 'ordinary-workspace',
+      path: '/projects/ordinary',
+      title: '普通 DSH 工作区',
+      sessionIds: [],
       createdAt: '2026-08-20T08:00:00.000Z',
       updatedAt: '2026-08-21T08:00:00.000Z',
     } as never])} />)
@@ -39,6 +53,8 @@ describe('GstarApp', () => {
     expect(screen.getByText('/data/stations/guangzhou')).toBeTruthy()
     expect(screen.getByText('待配置')).toBeTruthy()
     expect(screen.getByText('1', { selector: 'dd' })).toBeTruthy()
+    expect(screen.getByText('已登记的 DSH Workspace 对应局点；普通 Web 工作区不会显示在这里。')).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: '普通 DSH 工作区' })).toBeNull()
   })
 
   it('switches to a service placeholder without losing the root shell', () => {
@@ -47,6 +63,22 @@ describe('GstarApp', () => {
 
     expect(screen.getByRole('heading', { name: '运行时服务正在接入' })).toBeTruthy()
     expect(screen.getByLabelText('GSTAR Harness')).toBeTruthy()
+  })
+
+  it('shows GSTAR membership loading without projecting generic Workspaces', () => {
+    const value = props([], vi.fn(), [{
+      workspaceId: 'ordinary-workspace',
+      path: '/projects/ordinary',
+      title: '普通 DSH 工作区',
+      sessionIds: [],
+      createdAt: '2026-08-20T08:00:00.000Z',
+      updatedAt: '2026-08-21T08:00:00.000Z',
+    } as never])
+    value.sites.set({ items: [], phase: 'loading' })
+    render(<GstarApp {...value} />)
+
+    expect(screen.getByText('正在同步局点工作区…')).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: '普通 DSH 工作区' })).toBeNull()
   })
 
   it('creates a station through the injected Host action', async () => {
@@ -69,5 +101,33 @@ describe('GstarApp', () => {
       expect(createSite).toHaveBeenCalledWith({ path: '/data/stations/guangzhou', title: '广州局点' })
     })
     expect((await screen.findByRole('status')).textContent).toContain('已连接局点：广州局点')
+  })
+
+  it('surfaces a station-create failure without adding generic Workspace data', async () => {
+    const createSite = vi.fn().mockRejectedValue(new Error('GSTAR membership write failed'))
+    render(<GstarApp {...props([], createSite)} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '创建局点' }))
+    fireEvent.change(screen.getByLabelText('Host 已有目录'), { target: { value: '/data/stations/failed' } })
+    fireEvent.click(screen.getByRole('button', { name: '连接 Workspace' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('GSTAR membership write failed')
+    expect(createSite).toHaveBeenCalledWith({ path: '/data/stations/failed' })
+  })
+
+  it('renders a Host station-list failure without falling back to generic Workspaces', () => {
+    const value = props([], vi.fn(), [{
+      workspaceId: 'ordinary-workspace',
+      path: '/projects/ordinary',
+      title: '普通 DSH 工作区',
+      sessionIds: [],
+      createdAt: '2026-08-20T08:00:00.000Z',
+      updatedAt: '2026-08-21T08:00:00.000Z',
+    } as never])
+    value.sites.set({ items: [], phase: 'error', error: 'INTERNAL: unavailable' })
+    render(<GstarApp {...value} />)
+
+    expect(screen.getByRole('alert').textContent).toContain('INTERNAL: unavailable')
+    expect(screen.queryByRole('heading', { name: '普通 DSH 工作区' })).toBeNull()
   })
 })

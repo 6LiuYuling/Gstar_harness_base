@@ -38,17 +38,33 @@ function workspace(id: string, path: string, title: string): Workspace {
 }
 
 describe('gstar-site-workspace through a real Loader composition', () => {
-  it('projects durable Workspace order and delegates station creation', async () => {
+  it('projects only durable station members and classifies delegated creation', async () => {
     const first = workspace('site-1', '/stations/guangzhou', '广州局点')
+    const ordinary = workspace('workspace-1', '/projects/ordinary', '普通工作区')
     const created = workspace('site-2', '/stations/shenzhen', '深圳局点')
-    const create = vi.fn(async () => created)
+    const workspaces = [first, ordinary]
+    const create = vi.fn(async () => {
+      if (!workspaces.includes(created)) workspaces.unshift(created)
+      return created
+    })
+    const memberships = new Map([[first.id, { registeredAt: '2026-08-20T08:00:00.000Z' }]])
+    const put = vi.fn(async (id: Workspace['id'], value: { registeredAt: string }) => {
+      memberships.set(id, value)
+    })
+    const close = vi.fn(async () => {})
 
     root = await mkdtemp(join(tmpdir(), 'dsh-gstar-site-workspace-loader-'))
     const configPath = join(root, 'cordis.yml')
     await writeFile(configPath, "- name: '@deepseek-ai/dsh-gstar-site-workspace'\n")
 
     context = new Context()
-    context.provide('workspaceRegistry', { list: () => [first], create } as never)
+    context.provide('workspaceRegistry', { list: () => workspaces, create } as never)
+    context.provide('storageDomain', {
+      open: vi.fn(async () => ({
+        table: () => ({ get: (id: Workspace['id']) => memberships.get(id), put }),
+        close,
+      })),
+    } as never)
     context.baseUrl = pathToFileURL(root).href + '/'
     await context.plugin(Loader)
     context.loader.builtins.include = Include
@@ -76,6 +92,22 @@ describe('gstar-site-workspace through a real Loader composition', () => {
     await expect(context.gstarSites.create({ path: created.path, title: created.title }))
       .resolves.toMatchObject({ workspaceId: created.id, path: created.path, title: created.title })
     expect(create).toHaveBeenCalledWith(created.path, created.title)
+    expect(put).toHaveBeenCalledWith(created.id, { registeredAt: expect.any(String) })
+    await expect(context.gstarSites.list()).resolves.toEqual([
+      expect.objectContaining({ workspaceId: created.id }),
+      expect.objectContaining({ workspaceId: first.id }),
+    ])
+    expect((await context.gstarSites.list()).some(site => site.workspaceId === ordinary.id)).toBe(false)
+
+    await context.gstarSites.create({ path: created.path, title: created.title })
+    expect(put).toHaveBeenCalledTimes(1)
+
+    const service = context.gstarSites
+    await context.fiber.dispose()
+    context = undefined
+    expect(close).toHaveBeenCalledTimes(1)
+    await expect(service.create({ path: created.path }))
+      .rejects.toThrow('GSTAR site membership is disposing')
   })
 
   it('registers its package invariant', async () => {

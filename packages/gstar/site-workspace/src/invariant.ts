@@ -14,8 +14,8 @@ export const name = 'gstar-site-workspace-invariant'
 export const inject = ['invariants']
 
 /**
- * No runtime invariant: WorkspaceRegistry owns and validates the durable
- * station order; this provider publishes fresh read-only projections.
+ * No runtime invariant: storage-domain validates membership rows while
+ * WorkspaceRegistry owns the referenced Workspace entities and their order.
  */
 const install: InvariantInstaller = () => {}
 

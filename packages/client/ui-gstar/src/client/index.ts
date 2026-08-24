@@ -2,8 +2,11 @@
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-gstar-site/remote'
-import type { GstarSiteCreateRequest } from '@deepseek-ai/dsh-gstar-site/types'
 import { GstarApp, type GstarAppInjected } from './GstarApp.tsx'
+import { GstarSiteRuntime } from './site-runtime.ts'
+
+export { GstarSiteRuntime } from './site-runtime.ts'
+export type { GstarSiteListState } from './site-runtime.ts'
 
 /** Services required by the GSTAR browser plugin. */
 export const inject = ['slots', 'remote', 'remote.gstarSites']
@@ -13,14 +16,12 @@ export const inject = ['slots', 'remote', 'remote.gstarSites']
  * @param ctx - Client root context.
  */
 export function apply(ctx: ClientContext): void {
-  const createSite: GstarAppInjected['createSite'] = async (request: GstarSiteCreateRequest) => {
-    const result = await ctx.remote.gstarSites.create(request)
-    if (!result.ok) {
-      throw new Error(`gstarSites.create failed: ${result.error.code}: ${result.error.message}`)
-    }
-    return result.value
-  }
-  const injected = (): GstarAppInjected => ({ createSite })
+  const sites = new GstarSiteRuntime(ctx.remote.gstarSites)
+  void sites.load()
+  const injected = (): GstarAppInjected => ({
+    createSite: request => sites.create(request),
+    sites: sites.list,
+  })
 
   ctx.effect(
     () => ctx.slots.register({ name: 'root', inject: injected }, GstarApp),

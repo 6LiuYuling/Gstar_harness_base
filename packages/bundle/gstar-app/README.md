@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 Profile overlay composed after `dsh-web-app`. It keeps the Web Host and Client infrastructure while disabling the standard chat layout and mounting `dsh-client-ui-gstar` as a distinct root row. Standard chat presentation rows are disabled because their slots belong to the replaced shell; the presentation-free `ui-settings` domain remains active to provide `settingsScope` to locale and theme.
 
-The overlay also mounts `dsh-gstar-site-workspace` and `dsh-gstar-client-remotes`. The Host Provider exposes each durable Workspace as one GSTAR station through `ctx.gstarSites`; the GSTAR-only Client Remote assembly mounts that generated namespace into the standard DSH Remote carrier. The browser does not own a duplicate station database.
+The overlay also mounts `dsh-gstar-site-workspace` and `dsh-gstar-client-remotes`. The Host Provider exposes only Workspaces with durable GSTAR membership through `ctx.gstarSites`; the GSTAR-only Client Remote assembly mounts that generated namespace into the standard DSH Remote carrier. Ordinary `dsh web` Workspaces stay outside the GSTAR projection.
 
 ## Run from source
 

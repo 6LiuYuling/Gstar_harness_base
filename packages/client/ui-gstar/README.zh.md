@@ -2,9 +2,9 @@
 
 [English](README.md) | 中文
 
-GSTAR 浏览器根 Shell。它占用内置 `root` slot，并把持久化 DSH Workspace 投影为局点工作区。尚不可用的区域、数据源、门禁和流水线指标保持待接入状态，不在 React 中伪造产品数据。
+GSTAR 浏览器根 Shell。它占用内置 `root` slot，并渲染 Host 已分类的 `gstarSites.list` 投影，因此通用 `dsh web` Workspace 不会进入局点界面。尚不可用的区域、数据源、门禁和流水线指标保持待接入状态，不在 React 中伪造产品数据。
 
-注册它的 Client 插件向纯根组件注入 `createSite` action。该 action 调用 `ctx.remote.gstarSites.create`；成功创建后由 Host Workspace 注册表持久化，标准 Workspace 投影提供实时局点列表。React 从不持有权威局点状态。
+注册它的 Client 插件持有一个由 GSTAR Remote namespace 支撑的无 React 局点运行时。该运行时加载 `gstarSites.list`、公开不可变快照 store，并在 `gstarSites.create` 后刷新；React 不持有或过滤权威局点成员关系。
 
 ## 模型体验
 

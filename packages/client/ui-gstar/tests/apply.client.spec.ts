@@ -18,12 +18,13 @@ describe('ui-gstar client apply', () => {
       createdAt: '2026-08-20T08:00:00.000Z',
       updatedAt: '2026-08-21T08:00:00.000Z',
     }
+    const list = vi.fn().mockResolvedValue({ ok: true, value: [site] })
     const create = vi.fn().mockResolvedValue({ ok: true, value: site })
     class RemoteService extends Service {
       constructor(serviceCtx: Context) { super(serviceCtx, 'remote') }
     }
     new RemoteService(ctx)
-    ctx.provide('remote.gstarSites', { create })
+    ctx.provide('remote.gstarSites', { list, create })
 
     expect(inject).toEqual(['slots', 'remote', 'remote.gstarSites'])
     const fiber = ctx.plugin({ inject: [...inject], apply })
@@ -32,8 +33,12 @@ describe('ui-gstar client apply', () => {
     const entry = ctx.slots.entries('root')[0]!
     expect(entry.component).toBe(GstarApp)
     const injected = (entry.inject as unknown as () => GstarAppInjected)()
+    await vi.waitFor(() => {
+      expect(injected.sites.getSnapshot()).toEqual({ items: [site], phase: 'ready' })
+    })
     await expect(injected.createSite({ path: site.path, title: site.title })).resolves.toEqual(site)
     expect(create).toHaveBeenCalledWith({ path: site.path, title: site.title })
+    expect(list).toHaveBeenCalledTimes(2)
 
     await fiber.dispose()
     expect(ctx.slots.entries('root')).toHaveLength(0)
@@ -47,12 +52,25 @@ describe('ui-gstar client apply', () => {
       constructor(serviceCtx: Context) { super(serviceCtx, 'remote') }
     }
     new RemoteService(ctx)
+    const list = vi.fn().mockResolvedValue({
+      ok: false,
+      error: { code: 'INTERNAL', message: 'membership unavailable' },
+    })
     ctx.provide('remote.gstarSites', {
+      list,
       create: () => Promise.resolve({ ok: false, error: { code: 'NOT_FOUND', message: 'directory missing' } }),
     })
     await ctx.plugin({ inject: [...inject], apply }).await()
     const entry = ctx.slots.entries('root')[0]!
     const injected = (entry.inject as unknown as () => GstarAppInjected)()
+
+    await vi.waitFor(() => {
+      expect(injected.sites.getSnapshot()).toEqual({
+        items: [],
+        phase: 'error',
+        error: 'INTERNAL: membership unavailable',
+      })
+    })
 
     await expect(injected.createSite({ path: '/missing' }))
       .rejects.toThrow('gstarSites.create failed: NOT_FOUND: directory missing')

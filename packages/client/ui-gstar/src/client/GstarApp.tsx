@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import type { FormEvent } from 'react'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { GstarSiteCreateRequest, GstarSiteSnapshot } from '@deepseek-ai/dsh-gstar-site/types'
 import css from './GstarApp.module.css'
+import type { GstarSiteListState } from './site-runtime.ts'
 
 type Section = 'workspaces' | 'sources' | 'gates' | 'pipelines'
 
@@ -17,17 +19,19 @@ const NAVIGATION: readonly { id: Section; label: string }[] = [
 export interface GstarAppInjected {
   /** Create or resolve a station through the Host `gstarSites` Remote. */
   createSite(request: GstarSiteCreateRequest): Promise<GstarSiteSnapshot>
+  /** Host-authoritative station projection owned by the GSTAR browser runtime. */
+  sites: SnapshotStore<GstarSiteListState>
 }
 
 /** Props supplied by the root slot runtime and the GSTAR Client plugin. */
 export type GstarAppProps = PropsRuntime<'root'> & GstarAppInjected
 
 /**
- * Render the GSTAR root projection from DSH Workspace snapshots.
+ * Render the GSTAR root projection from Host-classified station snapshots.
  * @param props - Framework-bound root runtime hooks.
  * @returns the GSTAR application shell.
  */
-export function GstarApp({ createSite, useWorkspaces }: GstarAppProps) {
+export function GstarApp({ createSite, sites }: GstarAppProps) {
   const [section, setSection] = useState<Section>('workspaces')
   const [creating, setCreating] = useState(false)
   const [path, setPath] = useState('')
@@ -35,8 +39,7 @@ export function GstarApp({ createSite, useWorkspaces }: GstarAppProps) {
   const [submitting, setSubmitting] = useState(false)
   const [createError, setCreateError] = useState<string>()
   const [createdTitle, setCreatedTitle] = useState<string>()
-  const workspaces = useWorkspaces(state => state.items)
-  const phase = useWorkspaces(state => state.phase)
+  const siteState = useSyncExternalStore(sites.subscribe, sites.getSnapshot, sites.getSnapshot)
 
   const submitCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -84,10 +87,10 @@ export function GstarApp({ createSite, useWorkspaces }: GstarAppProps) {
             <div className={css.hero}>
               <p>REGION WORKSPACE</p>
               <h1>选择一个局点，构建可信时空数据资产</h1>
-              <span>DSH Workspace 对应局点；区域资产、数据源与处理流水线将在局点下统一管理。</span>
+              <span>已登记的 DSH Workspace 对应局点；普通 Web 工作区不会显示在这里。</span>
             </div>
             <section className={css.metrics} aria-label="局点概览">
-              <article><strong>{workspaces.length}</strong><span>已接入局点</span></article>
+              <article><strong>{siteState.items.length}</strong><span>已接入局点</span></article>
               <article><strong>—</strong><span>区域资产</span></article>
               <article><strong>—</strong><span>数据源插件</span></article>
               <article><strong>—</strong><span>运行中任务</span></article>
@@ -129,21 +132,23 @@ export function GstarApp({ createSite, useWorkspaces }: GstarAppProps) {
                 </form>
               ) : null}
               {createdTitle === undefined ? null : <p className={css.createStatus} role="status">已连接局点：{createdTitle}</p>}
-              {phase !== 'ready' ? (
+              {siteState.phase === 'loading' ? (
                 <p className={css.empty}>正在同步局点工作区…</p>
-              ) : workspaces.length === 0 ? (
+              ) : siteState.phase === 'error' ? (
+                <p className={css.empty} role="alert">局点同步失败：{siteState.error}</p>
+              ) : siteState.items.length === 0 ? (
                 <p className={css.empty}>尚未创建局点。请连接 Host 上已有目录以创建第一个局点 Workspace。</p>
               ) : (
                 <div className={css.grid}>
-                  {workspaces.map(workspace => (
-                    <article className={css.card} key={workspace.workspaceId}>
+                  {siteState.items.map(site => (
+                    <article className={css.card} key={site.workspaceId}>
                       <div className={css.cardTop}><span>局点工作区</span><em>已连接</em></div>
-                      <h3>{workspace.title}</h3>
-                      <p title={workspace.path}>{workspace.path}</p>
+                      <h3>{site.title}</h3>
+                      <p title={site.path}>{site.path}</p>
                       <dl>
                         <div><dt>区域资产</dt><dd>待配置</dd></div>
-                        <div><dt>会话</dt><dd>{workspace.sessionIds.length}</dd></div>
-                        <div><dt>更新时间</dt><dd>{new Date(workspace.updatedAt).toLocaleString('zh-CN')}</dd></div>
+                        <div><dt>会话</dt><dd>{site.sessionCount}</dd></div>
+                        <div><dt>更新时间</dt><dd>{new Date(site.updatedAt).toLocaleString('zh-CN')}</dd></div>
                       </dl>
                     </article>
                   ))}
