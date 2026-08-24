@@ -256,9 +256,9 @@ export function GstarApp({
           <CesiumGlobe
             sites={siteState.items}
             spatial={spatialState.items}
-            selectedSiteId={view.selectedSiteId}
-            selectedAoiId={view.selectedAoiId}
-            locatingSiteId={view.locatingSiteId}
+            {...(view.selectedSiteId === undefined ? {} : { selectedSiteId: view.selectedSiteId })}
+            {...(view.selectedAoiId === undefined ? {} : { selectedAoiId: view.selectedAoiId })}
+            {...(view.locatingSiteId === undefined ? {} : { locatingSiteId: view.locatingSiteId })}
             onSelectSite={chooseSite}
             onSelectAoi={(workspaceId, aoiId) => {
               if (workspaceId !== view.selectedSiteId) chooseSite(workspaceId)

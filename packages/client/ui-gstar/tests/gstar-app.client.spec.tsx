@@ -111,6 +111,7 @@ function props(options: {
   return {
     actions: store.actions,
     useStore: storeHook(store),
+    SessionProvider: ({ children }) => children('session-1' as never),
     createSite: options.createSite ?? vi.fn(),
     patchSpatial: options.patchSpatial ?? vi.fn(),
     openSite: options.openSite ?? vi.fn(),
