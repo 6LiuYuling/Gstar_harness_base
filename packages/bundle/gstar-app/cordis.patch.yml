@@ -12,16 +12,23 @@
     - id: gstar-client-remotes
       name: '@deepseek-ai/dsh-gstar-client-remotes'
 
+    # GSTAR is a separate Client row rather than a `name` override. In the
+    # include patch dialect `name` validates the package already mounted at an
+    # id; it does not replace that package.
+    - id: ui-gstar
+      name: '@deepseek-ai/dsh-client-ui-gstar'
+
 - id: ui-layout
-  name: '@deepseek-ai/dsh-client-ui-gstar'
+  disabled: true
 
 # These packages compose the standard chat shell's private slot tree. GSTAR
 # owns the root and will re-introduce Agent conversation through an explicit
 # GSTAR slot in a later package rather than retaining hidden registrations.
 - id: ui-sidebar
   disabled: true
-- id: ui-settings
-  disabled: true
+# `ui-settings` is the presentation-free settings domain. It must remain
+# active because it provides `settingsScope` to locale and theme. Only its
+# standard settings-page consumers below are disabled for the GSTAR shell.
 - id: ui-settings-general
   disabled: true
 - id: ui-settings-models
