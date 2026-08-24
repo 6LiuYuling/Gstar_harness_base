@@ -2,11 +2,11 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
-import { GstarApp } from '../src/client/GstarApp.tsx'
+import { GstarApp, type GstarAppProps } from '../src/client/GstarApp.tsx'
 
 afterEach(cleanup)
 
-function props(items: WorkspaceListState['items'] = [], createSite = vi.fn()) {
+function props(items: WorkspaceListState['items'] = [], createSite = vi.fn()): GstarAppProps {
   const state: WorkspaceListState = {
     items,
     archivedSessionIds: [],
@@ -21,7 +21,7 @@ function props(items: WorkspaceListState['items'] = [], createSite = vi.fn()) {
     useWorkspaces: <S,>(selector: (value: WorkspaceListState) => S) => selector(state),
     useSessions: () => undefined,
     useProjection: () => undefined,
-  } as never
+  } as unknown as GstarAppProps
 }
 
 describe('GstarApp', () => {
