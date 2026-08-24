@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
+import type { GstarAoiSnapshot } from '@deepseek-ai/dsh-gstar-spatial/types'
 import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import type { WorkspaceId as WorkspaceIdType } from '@deepseek-ai/dsh-workspace/types'
 import StorageGstarSpatialService, { type GstarSpatialRecord } from '../src/index.ts'
@@ -76,7 +77,7 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
       aois: [],
     })
 
-    const aoi = {
+    const aoi: GstarAoiSnapshot = {
       id: 'aoi-1',
       name: '广州道路',
       category: '道路',

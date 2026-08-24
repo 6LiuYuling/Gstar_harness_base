@@ -5,7 +5,9 @@
 
 import { Service, type Context } from '@deepseek-ai/cordis'
 import GstarSpatialService from '@deepseek-ai/dsh-gstar-spatial'
-import type { GstarSpatialPatchRequest, GstarSpatialSnapshot } from '@deepseek-ai/dsh-gstar-spatial/types'
+import type {
+  GstarAoiSnapshot, GstarSpatialPatchRequest, GstarSpatialSnapshot,
+} from '@deepseek-ai/dsh-gstar-spatial/types'
 import type {} from '@deepseek-ai/dsh-gstar-site'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
@@ -18,12 +20,72 @@ export {
 } from './spec.ts'
 export type { GstarSpatialRecord } from './spec.ts'
 
+type GstarAoiRecord = GstarSpatialRecord['aois'][number]
+
+/** Copy a coordinate while omitting absent optional fields at the exact-type boundary. */
+function copyCoordinate(coordinate: {
+  readonly longitude: number
+  readonly latitude: number
+  readonly height?: number | undefined
+}) {
+  const base = { longitude: coordinate.longitude, latitude: coordinate.latitude }
+  return coordinate.height === undefined ? base : { ...base, height: coordinate.height }
+}
+
+/** Deep-copy Polygon and MultiPolygon coordinates across readonly/storage boundaries. */
+function copyGeometry(geometry: GstarAoiSnapshot['geometry'] | GstarAoiRecord['geometry']) {
+  if (geometry.type === 'Polygon') {
+    return {
+      type: 'Polygon' as const,
+      coordinates: geometry.coordinates.map(ring => ring.map(copyCoordinate)),
+    }
+  }
+  return {
+    type: 'MultiPolygon' as const,
+    coordinates: geometry.coordinates.map(polygon => polygon.map(ring => ring.map(copyCoordinate))),
+  }
+}
+
+/** Deep-copy one AOI and omit undefined provenance properties. */
+function copyAoi(aoi: GstarAoiSnapshot | GstarAoiRecord) {
+  return {
+    id: aoi.id,
+    name: aoi.name,
+    category: aoi.category,
+    geometry: copyGeometry(aoi.geometry),
+    entities: aoi.entities.map(entity => ({
+      id: entity.id,
+      type: entity.type,
+      fields: { ...entity.fields },
+    })),
+    provenance: aoi.provenance.map(source => ({
+      sourceId: source.sourceId,
+      sourceName: source.sourceName,
+      retrievedAt: source.retrievedAt,
+      ...(source.sourceUrl === undefined ? {} : { sourceUrl: source.sourceUrl }),
+      ...(source.license === undefined ? {} : { license: source.license }),
+      ...(source.checksum === undefined ? {} : { checksum: source.checksum }),
+    })),
+    updatedAt: aoi.updatedAt,
+  }
+}
+
+/** Convert a durable mutable AOI record into the public readonly projection. */
+function aoiSnapshot(record: GstarAoiRecord): GstarAoiSnapshot {
+  return copyAoi(record)
+}
+
+/** Convert a public readonly AOI projection into a durable mutable record. */
+function aoiRecord(aoi: GstarAoiSnapshot): GstarAoiRecord {
+  return copyAoi(aoi)
+}
+
 /** Copy one durable record into the immutable product projection. */
 function snapshot(workspaceId: WorkspaceId, record?: GstarSpatialRecord): GstarSpatialSnapshot {
   return Object.freeze({
     workspaceId,
-    ...(record?.location === undefined ? {} : { location: Object.freeze({ ...record.location }) }),
-    aois: Object.freeze([...(record?.aois ?? [])]),
+    ...(record?.location === undefined ? {} : { location: Object.freeze(copyCoordinate(record.location)) }),
+    aois: Object.freeze((record?.aois ?? []).map(aoiSnapshot)),
     ...(record === undefined ? {} : { updatedAt: record.updatedAt }),
   })
 }
@@ -72,8 +134,8 @@ export class StorageGstarSpatialService extends GstarSpatialService {
       const next: GstarSpatialRecord = {
         ...(request.location === undefined
           ? current?.location === undefined ? {} : { location: current.location }
-          : { location: request.location }),
-        aois: request.aois === undefined ? current?.aois ?? [] : [...request.aois],
+          : { location: copyCoordinate(request.location) }),
+        aois: request.aois === undefined ? current?.aois ?? [] : request.aois.map(aoiRecord),
         updatedAt: new Date().toISOString(),
       }
       await stations.put(request.workspaceId, next)

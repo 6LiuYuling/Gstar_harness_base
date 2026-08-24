@@ -30,7 +30,9 @@ describe('gstar-spatial Service Definition', () => {
     const ctx = new Context()
     const fiber = ctx.plugin(FixtureGstarSpatial)
     await fiber.await()
-    const request = { workspaceId: SPATIAL.workspaceId, location: SPATIAL.location }
+    const location = SPATIAL.location
+    if (location === undefined) throw new Error('fixture requires a station location')
+    const request: GstarSpatialPatchRequest = { workspaceId: SPATIAL.workspaceId, location }
 
     await expect(ctx.gstarSpatial.remoteExportList()).resolves.toEqual([SPATIAL])
     await expect(ctx.gstarSpatial.remoteExportPatch(request)).resolves.toBe(SPATIAL)
