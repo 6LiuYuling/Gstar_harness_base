@@ -7,6 +7,7 @@
     { "path": "../../api/remotes/tsconfig.client.json" },
     { "path": "../runtime" },
     { "path": "../ui-slots" },
+    { "path": "../ui-workspace" },
     { "path": "../../gstar/client-remotes/tsconfig.client.json" },
     { "path": "../../gstar/site" },
     { "path": "../../runtime-diagnostics/invariants" }

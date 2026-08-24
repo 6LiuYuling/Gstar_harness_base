@@ -6,6 +6,8 @@
 
 覆盖层同时挂载 `dsh-gstar-site-workspace` 和 `dsh-gstar-client-remotes`。Host Provider 只通过 `ctx.gstarSites` 发布具有持久化 GSTAR 成员关系的 Workspace；GSTAR 专用 Client Remote 组合把该生成 namespace 挂载到标准 DSH Remote carrier。普通 `dsh web` Workspace 保持在 GSTAR 投影之外。
 
+在 `ui-workspace` 被禁用时，GSTAR 根插件声明标准 Workspace directory-flow 洞。因此共享的 `directory-picker-auto` 行可以原样挂载原生或浏览式交互；选中的目录经 `gstarSites.create` 完成归类，不引入 GSTAR 专用文件系统界面。
+
 ## 从源码运行
 
 在仓库根目录依次运行 `pnpm install`、`pnpm run build` 和 `pnpm dsh gstar`。应用默认监听 `http://127.0.0.1:3080`。`pnpm dsh gstar --dump-config` 可在不启动 Host 的情况下打印 `base` → `web-app` → `gstar-app` 的完整组合树。

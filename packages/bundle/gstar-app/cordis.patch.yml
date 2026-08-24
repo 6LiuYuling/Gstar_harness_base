@@ -49,6 +49,9 @@
   disabled: true
 - id: ui-deliverables
   disabled: true
+# The GSTAR root re-declares ui-workspace's directory-flow holes so the
+# shared directory-picker-auto interaction remains available without the
+# standard Workspace list or generic Workspace adoption action.
 - id: ui-workspace
   disabled: true
 - id: ui-input-trigger

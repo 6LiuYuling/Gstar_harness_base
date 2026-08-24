@@ -32,7 +32,17 @@ describe('ui-gstar client apply', () => {
     expect(ctx.slots.entries('root')).toHaveLength(1)
     const entry = ctx.slots.entries('root')[0]!
     expect(entry.component).toBe(GstarApp)
+    expect(ctx.slots.spec('conversation.hero.workspace.directoryFlow')).toEqual({ kind: 'single', scope: 'root' })
+    expect(ctx.slots.spec('sidebar.workspaces.directoryFlow')).toEqual({ kind: 'single', scope: 'root' })
     const injected = (entry.inject as unknown as () => GstarAppInjected)()
+    expect(injected.hooks.directoryFlow.getSnapshot()).toBe(false)
+    const disposeFlow = ctx.slots.register(
+      { name: 'conversation.hero.workspace.directoryFlow' },
+      () => null,
+    )
+    expect(injected.hooks.directoryFlow.getSnapshot()).toBe(true)
+    disposeFlow()
+    expect(injected.hooks.directoryFlow.getSnapshot()).toBe(false)
     await vi.waitFor(() => {
       expect(injected.sites.getSnapshot()).toEqual({ items: [site], phase: 'ready' })
     })

@@ -20,6 +20,8 @@ GSTAR Shell 仅在一个持久化 DSH Workspace 被明确归类为局点后，�
 
 `dsh-gstar-client-remotes` 只为 `gstar` Profile 选择生成的局点 contribution，并将其挂载到 DSH 标准 Client Remote carrier。`ui-gstar` 持有无 React 局点运行时：它加载 `ctx.remote.gstarSites.list`，向纯根组件注入快照 store 和 `createSite` action，并在创建成功后刷新。通用 `dsh web` 组合及其 Workspace 投影保持不变。
 
+在标准 `ui-workspace` 行被禁用时，GSTAR 根插件声明两个标准 Workspace directory-flow 洞。`directory-picker-auto` 提供与 Web 相同的原生或浏览式占位者；其选中路径交给 `gstarSites.create`。目录选择器 Client 清单依赖运行时服务，而不是某个特定洞 owner；`slots.inject()` 将其生命周期绑定到声明这对洞的根插件。
+
 ## Alternatives considered
 
 **在 DSH 旁独立托管 GSTAR Web 应用。** 不予采用，因为它会重复实现 Web Host、持久化、Workspace 投影、权限和插件加载生命周期，而浏览器本地状态不能成为 GSTAR 的权威运行时。
@@ -34,10 +36,10 @@ CLI 测试固定 `gstar` 别名和应用参数边界，App Boot 测试固定随�
 
 局点 Service Definition 测试固定服务发布、销毁与 Remote 委托。Workspace Provider 测试通过真实 Loader/Include 组合运行，并验证成员过滤、注册表顺序投影、创建委托、持久化归类、幂等重连及领域销毁。
 
-GSTAR Client 组合测试固定生成 contribution 的挂载与销毁。UI apply 与运行时测试固定精确 Remote 依赖、成功/错误信封处理、创建后刷新和过期响应抑制；组件测试通过行内表单驱动注入的局点创建 action。
+GSTAR Client 组合测试固定生成 contribution 的挂载与销毁。UI apply 与运行时测试固定精确 Remote 依赖、成功/错误信封处理、创建后刷新、过期响应抑制、两个 directory-flow 声明和占位者实时可用性；组件测试用选中的 Host 目录驱动注入的局点创建 action，并证明界面不存在手工路径字段。
 
 包级 Model Experience 审计把 GSTAR Bundle、UI、Service Definition、Workspace Provider 和 Client Remote 组合归类为模型中性 contribution。
 
 ## Consequences
 
-`gstar` 组合无需复制 Web 基础设施或修改通用 Workspace 约定，即可启动为基于真实 Workspace 的局点界面。普通 Web Workspace 不进入 GSTAR，除非用户明确连接其路径并将其归类为局点；成员关系 sidecar 引入前创建的 Workspace 保持未分类，直至执行该操作。产品导航可以先于各数据能力出现，同时每个尚不可用的领域都保持明确。暂时代价是数据源、门禁和流水线入口仍显示服务占位，而且在 directory-picker contribution 挂载前，创建表单需要填写 Host 路径。
+`gstar` 组合无需复制 Web 基础设施或修改通用 Workspace 约定，即可启动为基于真实 Workspace 的局点界面。普通 Web Workspace 不进入 GSTAR，除非用户明确选择其路径并将其归类为局点；成员关系 sidecar 引入前创建的 Workspace 保持未分类，直至执行该操作。产品导航可以先于各数据能力出现，同时每个尚不可用的领域都保持明确。数据源、门禁和流水线入口仍显示服务占位。

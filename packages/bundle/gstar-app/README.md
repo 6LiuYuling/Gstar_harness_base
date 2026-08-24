@@ -6,6 +6,8 @@ Profile overlay composed after `dsh-web-app`. It keeps the Web Host and Client i
 
 The overlay also mounts `dsh-gstar-site-workspace` and `dsh-gstar-client-remotes`. The Host Provider exposes only Workspaces with durable GSTAR membership through `ctx.gstarSites`; the GSTAR-only Client Remote assembly mounts that generated namespace into the standard DSH Remote carrier. Ordinary `dsh web` Workspaces stay outside the GSTAR projection.
 
+The GSTAR root declares the standard Workspace directory-flow holes while `ui-workspace` is disabled. The shared `directory-picker-auto` row can therefore mount its native or browse interaction unchanged; a selected directory is classified through `gstarSites.create` instead of a GSTAR-specific filesystem UI.
+
 ## Run from source
 
 From the repository root, run `pnpm install`, `pnpm run build`, then `pnpm dsh gstar`. The application listens on `http://127.0.0.1:3080` by default. `pnpm dsh gstar --dump-config` prints the composed `base` → `web-app` → `gstar-app` tree without starting the Host.

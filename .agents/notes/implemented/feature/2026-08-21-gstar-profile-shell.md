@@ -20,6 +20,8 @@ Station identity is formalized as the provider-neutral `ctx.gstarSites` Service 
 
 `dsh-gstar-client-remotes` selects the generated site contribution only for the `gstar` Profile and mounts it into DSH's standard Client Remote carrier. `ui-gstar` owns the React-free station runtime: it loads `ctx.remote.gstarSites.list`, injects its snapshot store and a `createSite` action into the pure root component, and refreshes after successful creation. The generic `dsh web` assembly and its Workspace projection are unchanged.
 
+The GSTAR root declares both standard Workspace directory-flow holes while the standard `ui-workspace` row is disabled. `directory-picker-auto` supplies the same native or browse occupant used by Web; its selected path goes to `gstarSites.create`. The picker Client manifests depend on runtime services instead of a particular hole owner, and `slots.inject()` binds their lifetime to whichever root declares the pair.
+
 ## Alternatives considered
 
 **Host GSTAR as a standalone Web application beside DSH.** Rejected because it would duplicate the Web Host, persistence, workspace projection, permissions, and plugin loading lifecycle, and browser-local state could not serve as the authoritative GSTAR runtime.
@@ -34,10 +36,10 @@ CLI tests pin the `gstar` alias and app-argument boundary. App Boot tests pin th
 
 The station Service Definition test pins service publication, disposal, and Remote delegation. The Workspace Provider test runs through a real Loader/Include composition and verifies membership filtering, registry-order projection, delegated creation, durable classification, idempotent reconnect, and domain disposal.
 
-The GSTAR Client assembly test pins generated contribution mount/disposal. UI apply and runtime tests pin exact Remote dependencies, success/error envelope handling, refresh after creation, and stale-response suppression; the component test drives the injected station-create action through the inline form.
+The GSTAR Client assembly test pins generated contribution mount/disposal. UI apply and runtime tests pin exact Remote dependencies, success/error envelope handling, refresh after creation, stale-response suppression, both directory-flow declarations, and live occupant availability; the component test drives the injected station-create action with a picked Host directory and proves no manual path field exists.
 
 The package Model Experience audit classifies the GSTAR Bundle, UI, Service Definition, Workspace Provider, and Client Remote assembly as model-neutral contributions.
 
 ## Consequences
 
-The `gstar` composition boots into a real Workspace-backed station surface without forking Web infrastructure or changing the generic Workspace contract. Ordinary Web Workspaces stay outside GSTAR unless a user explicitly connects their path as a station; Workspaces created before the membership sidecar remain unclassified until that action occurs. Product navigation can land before each data-plane service, while each unavailable domain stays explicit. The temporary cost is that source, gate, and pipeline navigation still show service placeholders, and the create form accepts a Host path until the directory-picker contribution is mounted.
+The `gstar` composition boots into a real Workspace-backed station surface without forking Web infrastructure or changing the generic Workspace contract. Ordinary Web Workspaces stay outside GSTAR unless a user explicitly selects their path as a station; Workspaces created before the membership sidecar remain unclassified until that action occurs. Product navigation can land before each data-plane service, while each unavailable domain stays explicit. Source, gate, and pipeline navigation still show service placeholders.

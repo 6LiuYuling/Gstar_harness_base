@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSnapshotStore, type WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
+import type { DirectoryFlowOwnerProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { GstarSiteSnapshot } from '@deepseek-ai/dsh-gstar-site/types'
 import { GstarApp, type GstarAppProps } from '../src/client/GstarApp.tsx'
 import type { GstarSiteListState } from '../src/client/site-runtime.ts'
@@ -12,6 +13,7 @@ function props(
   items: readonly GstarSiteSnapshot[] = [],
   createSite = vi.fn(),
   workspaces: WorkspaceListState['items'] = [],
+  directoryFlow: { available?: boolean; pickedPath?: string } = {},
 ): GstarAppProps {
   const state: WorkspaceListState = {
     items: workspaces,
@@ -25,6 +27,17 @@ function props(
   return {
     createSite,
     sites: createSnapshotStore<GstarSiteListState>({ items, phase: 'ready' }),
+    useDirectoryFlow: <S,>(selector: (value: boolean) => S) => selector(directoryFlow.available ?? true),
+    renderSlot: ((_name: string, owner: DirectoryFlowOwnerProps) => owner.open
+      ? (
+          <button
+            type="button"
+            onClick={() => { owner.onPicked(directoryFlow.pickedPath ?? '/data/stations/guangzhou') }}
+          >
+            选择此目录
+          </button>
+        )
+      : null),
     useWorkspaces: <S,>(selector: (value: WorkspaceListState) => S) => selector(state),
     useSessions: () => undefined,
     useProjection: () => undefined,
@@ -90,29 +103,34 @@ describe('GstarApp', () => {
       createdAt: '2026-08-20T08:00:00.000Z',
       updatedAt: '2026-08-21T08:00:00.000Z',
     })
-    render(<GstarApp {...props([], createSite)} />)
+    render(<GstarApp {...props([], createSite, [], { pickedPath: '/data/stations/guangzhou' })} />)
 
     fireEvent.click(screen.getByRole('button', { name: '创建局点' }))
-    fireEvent.change(screen.getByLabelText('Host 已有目录'), { target: { value: '/data/stations/guangzhou' } })
-    fireEvent.change(screen.getByLabelText('局点名称（可选）'), { target: { value: '广州局点' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接 Workspace' }))
+    fireEvent.click(screen.getByRole('button', { name: '选择此目录' }))
 
     await waitFor(() => {
-      expect(createSite).toHaveBeenCalledWith({ path: '/data/stations/guangzhou', title: '广州局点' })
+      expect(createSite).toHaveBeenCalledWith({ path: '/data/stations/guangzhou' })
     })
     expect((await screen.findByRole('status')).textContent).toContain('已连接局点：广州局点')
+    expect(screen.queryByLabelText('Host 已有目录')).toBeNull()
   })
 
   it('surfaces a station-create failure without adding generic Workspace data', async () => {
     const createSite = vi.fn().mockRejectedValue(new Error('GSTAR membership write failed'))
-    render(<GstarApp {...props([], createSite)} />)
+    render(<GstarApp {...props([], createSite, [], { pickedPath: '/data/stations/failed' })} />)
 
     fireEvent.click(screen.getByRole('button', { name: '创建局点' }))
-    fireEvent.change(screen.getByLabelText('Host 已有目录'), { target: { value: '/data/stations/failed' } })
-    fireEvent.click(screen.getByRole('button', { name: '连接 Workspace' }))
+    fireEvent.click(screen.getByRole('button', { name: '选择此目录' }))
 
     expect((await screen.findByRole('alert')).textContent).toContain('GSTAR membership write failed')
     expect(createSite).toHaveBeenCalledWith({ path: '/data/stations/failed' })
+  })
+
+  it('disables station creation while no composed DSH directory flow is available', () => {
+    render(<GstarApp {...props([], vi.fn(), [], { available: false })} />)
+
+    expect(screen.getByRole('button', { name: '目录选择器加载中…' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.queryByLabelText('Host 已有目录')).toBeNull()
   })
 
   it('renders a Host station-list failure without falling back to generic Workspaces', () => {

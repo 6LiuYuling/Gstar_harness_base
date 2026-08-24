@@ -215,7 +215,7 @@ describe('composeEntries', () => {
     expect(composeEntries([[{ id: 'missing', config: {} }]])).toEqual([])
   })
 
-  it('composes the GSTAR root while retaining settings services required by locale and theme', () => {
+  it('composes the GSTAR root and directory picker while retaining required settings services', () => {
     const readBundlePatch = (relativeUrl: string) => {
       const parsed = yaml.load(
         readFileSync(new URL(relativeUrl, import.meta.url), 'utf8'),
@@ -241,6 +241,11 @@ describe('composeEntries', () => {
       name: '@deepseek-ai/dsh-client-ui-gstar',
     })
     expect(byId.get('ui-gstar')?.disabled).not.toBe(true)
+    expect(byId.get('directory-picker')).toMatchObject({
+      name: '@deepseek-ai/dsh-host-directory-picker-auto',
+    })
+    expect(byId.get('directory-picker')?.disabled).not.toBe(true)
+    expect(byId.get('ui-workspace')?.disabled).toBe(true)
     expect(byId.get('ui-settings')).toMatchObject({
       name: '@deepseek-ai/dsh-client-ui-settings',
     })
