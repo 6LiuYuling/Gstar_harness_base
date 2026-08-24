@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-在 `dsh-web-app` 之后组合的 Profile 覆盖层。它保留 Web Host 与 Client 基础设施，同时用 `dsh-client-ui-gstar` 替换标准聊天根界面。标准聊天展示行会被禁用，因为其 slot 属于已经被替换的 Shell。
+在 `dsh-web-app` 之后组合的 Profile 覆盖层。它保留 Web Host 与 Client 基础设施，禁用标准聊天布局，并把 `dsh-client-ui-gstar` 作为独立根插件挂载。标准聊天展示行会被禁用，因为其 slot 属于已经被替换的 Shell；不含界面的 `ui-settings` 领域服务仍保持启用，以便向 locale 和 theme 提供 `settingsScope`。
 
 覆盖层同时挂载 `dsh-gstar-site-workspace` 和 `dsh-gstar-client-remotes`。Host Provider 通过 `ctx.gstarSites` 把每个持久化 Workspace 发布为一个 GSTAR 局点；GSTAR 专用 Client Remote 组合把该生成 namespace 挂载到标准 DSH Remote carrier。浏览器不持有重复的局点数据库。
 
