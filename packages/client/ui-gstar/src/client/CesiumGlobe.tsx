@@ -3,7 +3,7 @@ import * as Cesium from 'cesium'
 import type { Cartesian2, Entity, ScreenSpaceEventHandler, Viewer } from 'cesium'
 import type { WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  GstarAoiSnapshot, GstarCoordinate, GstarLinearRing, GstarSpatialSnapshot,
+  GstarCoordinate, GstarLinearRing, GstarSpatialSnapshot,
 } from '@deepseek-ai/dsh-gstar-spatial/types'
 import type { GstarSiteSnapshot } from '@deepseek-ai/dsh-gstar-site/types'
 import css from './CesiumGlobe.module.css'
@@ -12,6 +12,7 @@ const CESIUM_ASSET_BASE = '/gstar/cesium/'
 const CESIUM_WIDGET_STYLES = `${CESIUM_ASSET_BASE}Widgets/widgets.css`
 
 type CesiumModule = typeof Cesium
+type CesiumBuildModuleUrl = typeof Cesium.buildModuleUrl & { setBaseUrl(value: string): void }
 
 interface GlobeRuntime {
   readonly Cesium: CesiumModule
@@ -97,7 +98,7 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
     if (container === null) return
     const disposeStyles = ensureCesiumStyles()
     ;(window as typeof window & { CESIUM_BASE_URL?: string }).CESIUM_BASE_URL = CESIUM_ASSET_BASE
-    Cesium.buildModuleUrl.setBaseUrl(CESIUM_ASSET_BASE)
+    ;(Cesium.buildModuleUrl as CesiumBuildModuleUrl).setBaseUrl(CESIUM_ASSET_BASE)
     let viewer: Viewer | undefined
     let handler: ScreenSpaceEventHandler | undefined
     try {

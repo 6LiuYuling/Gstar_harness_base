@@ -14,7 +14,7 @@ interface GstarViewState {
 }
 
 /** Complete mutation set for GSTAR viewing state and the DSH layout face. */
-interface GstarViewActions {
+type GstarViewActions = {
   selectSite: (draft: GstarViewState, workspaceId: WorkspaceId) => void
   selectAoi: (draft: GstarViewState, aoiId: string) => void
   closeAoi: (draft: GstarViewState) => void

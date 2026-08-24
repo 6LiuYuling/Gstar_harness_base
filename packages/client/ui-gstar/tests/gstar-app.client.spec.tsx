@@ -99,7 +99,7 @@ function props(options: {
   const spatial = { items: options.spatial ?? [], phase: 'ready' as const }
   const renderSlot: GstarAppProps['renderSlot'] = (name, owner) => {
     if (name === 'conversation.hero.workspace.directoryFlow') {
-      const flow = owner as DirectoryFlowOwnerProps
+      const flow = owner as unknown as DirectoryFlowOwnerProps
       return flow.open
         ? <button type="button" onClick={() => { flow.onPicked('/data/stations/new-site') }}>选择此目录</button>
         : null
@@ -115,10 +115,12 @@ function props(options: {
     patchSpatial: options.patchSpatial ?? vi.fn(),
     openSite: options.openSite ?? vi.fn(),
     renderSlot,
+    useSessions: (() => undefined) as GstarAppProps['useSessions'],
+    useWorkspaces: (() => undefined) as GstarAppProps['useWorkspaces'],
     useDirectoryFlow: <S,>(selector: (available: boolean) => S) => selector(options.directoryAvailable ?? true),
     useSites: <S,>(selector: (state: typeof sites) => S) => selector(sites),
     useSpatial: <S,>(selector: (state: typeof spatial) => S) => selector(spatial),
-  } as GstarAppProps
+  }
 }
 
 describe('GstarApp three-column shell', () => {

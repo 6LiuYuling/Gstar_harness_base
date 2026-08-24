@@ -1,7 +1,7 @@
 /** GSTAR browser plugin that registers the product shell into the root slot. */
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import type { BoundActions, HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
+import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
@@ -35,7 +35,7 @@ export function apply(ctx: ClientContext): void {
     getSnapshot: () => ctx.slots.entries('conversation.hero.workspace.directoryFlow').length > 0,
     subscribe: listener => ctx.slots.subscribe('conversation.hero.workspace.directoryFlow', listener),
   }
-  const injected = (actions: BoundActions<ReturnType<typeof createGstarStore>>): GstarAppInjected => ({
+  const injected = (): GstarAppInjected => ({
     createSite: async (request) => {
       const site = await sites.create(request)
       await spatial.load()
@@ -65,7 +65,7 @@ export function apply(ctx: ClientContext): void {
         store: createGstarStore,
         inject: (actions) => {
           layout.attach(actions)
-          return injected(actions)
+          return injected()
         },
       }, GstarApp)
       return () => {

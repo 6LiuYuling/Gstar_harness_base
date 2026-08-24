@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import type { GstarSpatialSnapshot } from '@deepseek-ai/dsh-gstar-spatial/types'
 import { GstarSpatialRuntime } from '../src/client/spatial-runtime.ts'
 
+const LOCATION = { longitude: 113.3, latitude: 23.1 }
+
 const SPATIAL: GstarSpatialSnapshot = {
   workspaceId: 'site-1' as never,
-  location: { longitude: 113.3, latitude: 23.1 },
+  location: LOCATION,
   aois: [],
   updatedAt: '2026-08-21T08:00:00.000Z',
 }
@@ -17,7 +19,7 @@ describe('GstarSpatialRuntime', () => {
 
     await runtime.load()
     expect(runtime.list.getSnapshot()).toEqual({ items: [SPATIAL], phase: 'ready' })
-    const request = { workspaceId: SPATIAL.workspaceId, location: SPATIAL.location }
+    const request = { workspaceId: SPATIAL.workspaceId, location: LOCATION }
     await expect(runtime.patch(request)).resolves.toBe(SPATIAL)
     expect(patch).toHaveBeenCalledWith(request)
     expect(list).toHaveBeenCalledTimes(2)
@@ -37,7 +39,7 @@ describe('GstarSpatialRuntime', () => {
     expect(runtime.list.getSnapshot()).toEqual({
       items: [SPATIAL], phase: 'error', error: 'INTERNAL: unavailable',
     })
-    await expect(runtime.patch({ workspaceId: SPATIAL.workspaceId, location: SPATIAL.location }))
+    await expect(runtime.patch({ workspaceId: SPATIAL.workspaceId, location: LOCATION }))
       .rejects.toThrow('gstarSpatial.patch failed: INVALID_ARGUMENT: invalid coordinate')
   })
 
