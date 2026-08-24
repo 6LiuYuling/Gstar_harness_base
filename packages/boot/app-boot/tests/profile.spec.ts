@@ -8,6 +8,8 @@ import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import * as yaml from 'js-yaml'
+import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import {
   composeEntries,
   healProfilesModuleFallback,
@@ -211,6 +213,39 @@ describe('composeEntries', () => {
     expect(warnings.join('\n')).toContain('"missing"')
     // Default warn sink: skipped patches are silently dropped (boot repeats them).
     expect(composeEntries([[{ id: 'missing', config: {} }]])).toEqual([])
+  })
+
+  it('composes the GSTAR root while retaining settings services required by locale and theme', () => {
+    const readBundlePatch = (relativeUrl: string) => {
+      const parsed = yaml.load(
+        readFileSync(new URL(relativeUrl, import.meta.url), 'utf8'),
+        { schema: entryListSchema },
+      )
+      if (!Array.isArray(parsed)) throw new TypeError(`${relativeUrl} must contain a patch list`)
+      return parsed
+    }
+    const warnings: string[] = []
+    const entries = composeEntries([
+      readBundlePatch('../../../bundle/base/cordis.patch.yml'),
+      readBundlePatch('../../../bundle/web-app/cordis.patch.yml'),
+      readBundlePatch('../../../bundle/gstar-app/cordis.patch.yml'),
+    ], message => warnings.push(message))
+    const byId = new Map(entries.map(entry => [entry.id, entry]))
+
+    expect(warnings).toEqual([])
+    expect(byId.get('ui-layout')).toMatchObject({
+      name: '@deepseek-ai/dsh-client-ui-layout',
+      disabled: true,
+    })
+    expect(byId.get('ui-gstar')).toMatchObject({
+      name: '@deepseek-ai/dsh-client-ui-gstar',
+    })
+    expect(byId.get('ui-gstar')?.disabled).not.toBe(true)
+    expect(byId.get('ui-settings')).toMatchObject({
+      name: '@deepseek-ai/dsh-client-ui-settings',
+    })
+    expect(byId.get('ui-settings')?.disabled).not.toBe(true)
+    expect(byId.get('ui-settings-general')?.disabled).toBe(true)
   })
 })
 
