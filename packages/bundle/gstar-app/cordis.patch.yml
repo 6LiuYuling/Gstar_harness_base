@@ -7,8 +7,23 @@
     - id: gstar-sites
       name: '@deepseek-ai/dsh-gstar-site-workspace'
 
-    # Browser-only Remote contribution: mounts `gstarSites` into the standard
-    # DSH Client carrier without adding GSTAR namespaces to `dsh web`.
+    # Spatial snapshots stay in a Host capability so Cesium only projects
+    # station locations, AOIs, entities, and provenance returned by DSH.
+    - id: gstar-spatial
+      name: '@deepseek-ai/dsh-gstar-spatial-storage'
+
+    # Read-only Agent Consumer: scopes station/AOI/entity/provenance queries
+    # from the calling Session cwd and rejects non-station Workspaces.
+    - id: gstar-tool-spatial-query
+      name: '@deepseek-ai/dsh-gstar-tool-spatial-query'
+
+    # Cesium's workers, widgets, and runtime assets are served by the DSH Web
+    # Server. The GSTAR browser plugin is not a separately hosted web app.
+    - id: gstar-cesium-assets
+      name: '@deepseek-ai/dsh-gstar-cesium-assets'
+
+    # Browser-only Remote contribution: mounts `gstarSites` and `gstarSpatial`
+    # into the DSH Client carrier without adding GSTAR namespaces to `dsh web`.
     - id: gstar-client-remotes
       name: '@deepseek-ai/dsh-gstar-client-remotes'
 
@@ -21,9 +36,9 @@
 - id: ui-layout
   disabled: true
 
-# These packages compose the standard chat shell's private slot tree. GSTAR
-# owns the root and will re-introduce Agent conversation through an explicit
-# GSTAR slot in a later package rather than retaining hidden registrations.
+# GSTAR owns the root and the station list, so the standard shell and generic
+# Workspace presentation stay disabled. The standard conversation subtree is
+# intentionally active and mounts into GSTAR's right-hand `conversation` slot.
 - id: ui-sidebar
   disabled: true
 # `ui-settings` is the presentation-free settings domain. It must remain
@@ -35,52 +50,10 @@
   disabled: true
 - id: ui-settings-plugin-inventory
   disabled: true
-- id: ui-conversation
-  disabled: true
-- id: ui-brand-official
-  disabled: true
-- id: ui-attachment
-  disabled: true
-- id: ui-tool
-  disabled: true
-- id: ui-cordis
-  disabled: true
-- id: ui-workflow-run
-  disabled: true
-- id: ui-deliverables
-  disabled: true
 # The GSTAR root re-declares ui-workspace's directory-flow holes so the
 # shared directory-picker-auto interaction remains available without the
 # standard Workspace list or generic Workspace adoption action.
 - id: ui-workspace
   disabled: true
-- id: ui-input-trigger
-  disabled: true
-- id: ui-commands
-  disabled: true
-- id: ui-skill
-  disabled: true
-- id: ui-subagent
-  disabled: true
-- id: ui-reference
-  disabled: true
-- id: ui-jobs
-  disabled: true
-- id: ui-goal
-  disabled: true
-- id: ui-message-feedback
-  disabled: true
-- id: ui-model-selection
-  disabled: true
-- id: ui-permission
-  disabled: true
-- id: ui-agent-preset
-  disabled: true
 - id: ui-settings-plugins
-  disabled: true
-- id: ui-plan
-  disabled: true
-- id: ui-user-questions
-  disabled: true
-- id: ui-trajectory
   disabled: true

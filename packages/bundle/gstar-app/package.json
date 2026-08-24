@@ -41,8 +41,12 @@
   "dependencies": {
     "@deepseek-ai/dsh-client-ui-gstar": "workspace:^",
     "@deepseek-ai/dsh-gstar-client-remotes": "workspace:^",
+    "@deepseek-ai/dsh-gstar-cesium-assets": "workspace:^",
     "@deepseek-ai/dsh-gstar-site": "workspace:^",
-    "@deepseek-ai/dsh-gstar-site-workspace": "workspace:^"
+    "@deepseek-ai/dsh-gstar-site-workspace": "workspace:^",
+    "@deepseek-ai/dsh-gstar-spatial": "workspace:^",
+    "@deepseek-ai/dsh-gstar-spatial-storage": "workspace:^",
+    "@deepseek-ai/dsh-gstar-tool-spatial-query": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",

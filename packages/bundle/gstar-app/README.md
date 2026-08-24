@@ -2,9 +2,9 @@
 
 English | [中文](README.zh.md)
 
-Profile overlay composed after `dsh-web-app`. It keeps the Web Host and Client infrastructure while disabling the standard chat layout and mounting `dsh-client-ui-gstar` as a distinct root row. Standard chat presentation rows are disabled because their slots belong to the replaced shell; the presentation-free `ui-settings` domain remains active to provide `settingsScope` to locale and theme.
+Profile overlay composed after `dsh-web-app`. It keeps the Web Host and Client infrastructure while disabling only the standard root layout, sidebar, generic Workspace UI, and settings pages. `dsh-client-ui-gstar` owns the root and declares a three-column station shell; the standard DSH conversation and tool-presentation rows remain active and mount into GSTAR's right-hand slots.
 
-The overlay also mounts `dsh-gstar-site-workspace` and `dsh-gstar-client-remotes`. The Host Provider exposes only Workspaces with durable GSTAR membership through `ctx.gstarSites`; the GSTAR-only Client Remote assembly mounts that generated namespace into the standard DSH Remote carrier. Ordinary `dsh web` Workspaces stay outside the GSTAR projection.
+The overlay mounts the Workspace-backed station Provider, the `storage-domain` spatial Provider, the Cesium asset Host route, and the GSTAR-only Client Remote assembly. `ctx.gstarSites` exposes only Workspaces with durable GSTAR membership; `ctx.gstarSpatial` owns their locations, AOIs, entities, and provenance. Ordinary `dsh web` Workspaces stay outside both GSTAR projections.
 
 The GSTAR root declares the standard Workspace directory-flow holes while `ui-workspace` is disabled. The shared `directory-picker-auto` row can therefore mount its native or browse interaction unchanged; a selected directory is classified through `gstarSites.create` instead of a GSTAR-specific filesystem UI.
 
@@ -22,6 +22,6 @@ None.
 
 ## Known Limitations and Deferred Work
 
-- Station identity and creation now flow through a Workspace-backed Host Service, generated Typert Remote, GSTAR-only Client assembly, and an injected root-component action.
-- Region assets and pipeline data join through dedicated Host domains in subsequent packages.
-- Agent conversation is not mounted in the first shell delivery. It returns through a GSTAR-owned slot instead of depending on the standard layout's private slot tree.
+- AOI records remain empty until a real acquisition/processing pipeline publishes them through the spatial Service.
+- Base-map imagery currently uses public OpenStreetMap tiles and requires network access.
+- Source-configuration, processing, pipeline execution, and mutating Agent tools remain subsequent GSTAR capabilities; the shipped `gstar_station_data` tool is read-only.

@@ -2,6 +2,7 @@
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import gstarSitesRemote from '@deepseek-ai/dsh-gstar-site/remote'
+import gstarSpatialRemote from '@deepseek-ai/dsh-gstar-spatial/remote'
 // Pull the standard `ctx.remote` Client assembly declaration into this face.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 
@@ -13,6 +14,11 @@ export const inject = ['remote']
  * @param ctx - DSH Client context carrying the standard Remote carrier.
  * @returns disposer for the GSTAR namespace contribution.
  */
-export function apply(ctx: ClientContext): Promise<() => Promise<void>> {
-  return ctx.remote.$mount(gstarSitesRemote)
+export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
+  const disposeSites = await ctx.remote.$mount(gstarSitesRemote)
+  const disposeSpatial = await ctx.remote.$mount(gstarSpatialRemote)
+  return async () => {
+    await disposeSpatial()
+    await disposeSites()
+  }
 }

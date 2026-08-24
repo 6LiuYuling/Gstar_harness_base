@@ -18,6 +18,6 @@
 
 ## 已知限制与暂缓事项
 
-- 随附的 Workspace Provider 要求 Host 上已有目录，GSTAR Shell 还没有接入浏览器侧目录流程。
+- 随附的 Workspace Provider 要求 Host 上已有目录；GSTAR Shell 通过 DSH 标准目录选择器组合访问它。
 - Host Remote 约定已经存在，但 GSTAR Client Remote 组合与 UI Consumer 属于独立包。
 - 服务没有携带已认证操作者或局点级授权策略；部署必须把 Host 网关放在可信边界内。

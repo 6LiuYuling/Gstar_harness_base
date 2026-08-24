@@ -18,6 +18,6 @@ None.
 
 ## Known Limitations and Deferred Work
 
-- The shipped Workspace provider requires an existing Host directory and has no browser-facing directory workflow in the GSTAR shell yet.
+- The shipped Workspace provider requires an existing Host directory; the GSTAR shell reaches it through DSH's standard directory-picker composition.
 - The Host Remote contract exists, but the GSTAR Client Remote assembly and UI consumer are separate packages.
 - The service carries no authenticated actor or station-level authorization policy; deployments must keep the Host gateway inside a trusted boundary.

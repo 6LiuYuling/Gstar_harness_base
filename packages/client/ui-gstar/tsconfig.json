@@ -7,9 +7,12 @@
     { "path": "../../api/remotes/tsconfig.client.json" },
     { "path": "../runtime" },
     { "path": "../ui-slots" },
+    { "path": "../ui-conversation" },
+    { "path": "../ui-layout" },
     { "path": "../ui-workspace" },
     { "path": "../../gstar/client-remotes/tsconfig.client.json" },
     { "path": "../../gstar/site" },
+    { "path": "../../gstar/spatial" },
     { "path": "../../runtime-diagnostics/invariants" }
   ]
 }

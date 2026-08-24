@@ -6,84 +6,114 @@ import { apply as nodeApply } from '@deepseek-ai/dsh-client-ui-gstar'
 import * as invariant from '@deepseek-ai/dsh-client-ui-gstar/invariant'
 import { GstarApp, type GstarAppInjected } from '../src/client/GstarApp.tsx'
 
-describe('ui-gstar client apply', () => {
-  it('registers GSTAR as the only root occupant and releases it on teardown', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SlotRegistry).await()
-    const site = {
-      workspaceId: 'workspace-1',
-      path: '/stations/guangzhou',
-      title: '广州局点',
-      sessionCount: 0,
-      createdAt: '2026-08-20T08:00:00.000Z',
-      updatedAt: '2026-08-21T08:00:00.000Z',
-    }
-    const list = vi.fn().mockResolvedValue({ ok: true, value: [site] })
-    const create = vi.fn().mockResolvedValue({ ok: true, value: site })
-    class RemoteService extends Service {
-      constructor(serviceCtx: Context) { super(serviceCtx, 'remote') }
-    }
-    new RemoteService(ctx)
-    ctx.provide('remote.gstarSites', { list, create })
+const SITE = {
+  workspaceId: 'workspace-1',
+  path: '/stations/guangzhou',
+  title: '广州局点',
+  sessionCount: 0,
+  createdAt: '2026-08-20T08:00:00.000Z',
+  updatedAt: '2026-08-21T08:00:00.000Z',
+}
 
-    expect(inject).toEqual(['slots', 'remote', 'remote.gstarSites'])
-    const fiber = ctx.plugin({ inject: [...inject], apply })
-    await fiber.await()
-    expect(ctx.slots.entries('root')).toHaveLength(1)
-    const entry = ctx.slots.entries('root')[0]!
-    expect(entry.component).toBe(GstarApp)
-    expect(ctx.slots.spec('conversation.hero.workspace.directoryFlow')).toEqual({ kind: 'single', scope: 'root' })
-    expect(ctx.slots.spec('sidebar.workspaces.directoryFlow')).toEqual({ kind: 'single', scope: 'root' })
-    const injected = (entry.inject as unknown as () => GstarAppInjected)()
-    expect(injected.hooks.directoryFlow.getSnapshot()).toBe(false)
-    const disposeFlow = ctx.slots.register(
+const ACTIONS = {
+  selectSite: vi.fn(), selectAoi: vi.fn(), closeAoi: vi.fn(), beginLocating: vi.fn(),
+  finishLocating: vi.fn(), toggleSidebar: vi.fn(), openDetails: vi.fn(), closeDetails: vi.fn(),
+}
+
+async function setup(options: { readonly siteList?: unknown; readonly spatialList?: unknown } = {}) {
+  const ctx = new Context()
+  await ctx.plugin(SlotRegistry).await()
+  class RemoteService extends Service {
+    constructor(serviceCtx: Context) { super(serviceCtx, 'remote') }
+  }
+  new RemoteService(ctx)
+  const startSession = vi.fn()
+  const clearSession = vi.fn()
+  ctx.provide('sessions', { clear: clearSession } as never)
+  ctx.provide('workspaces', { startSession } as never)
+  const listSites = vi.fn().mockResolvedValue(options.siteList ?? { ok: true, value: [SITE] })
+  const createSite = vi.fn().mockResolvedValue({ ok: true, value: SITE })
+  const listSpatial = vi.fn().mockResolvedValue(options.spatialList ?? {
+    ok: true, value: [{ workspaceId: SITE.workspaceId, aois: [] }],
+  })
+  const patchSpatial = vi.fn().mockResolvedValue({
+    ok: true, value: { workspaceId: SITE.workspaceId, aois: [], location: { longitude: 113, latitude: 23 } },
+  })
+  ctx.provide('remote.gstarSites', { list: listSites, create: createSite })
+  ctx.provide('remote.gstarSpatial', { list: listSpatial, patch: patchSpatial })
+  const fiber = ctx.plugin({ inject: [...inject], apply })
+  await fiber.await()
+  const entry = ctx.slots.entries('root')[0]!
+  const injected = (entry.inject as unknown as (actions: typeof ACTIONS) => GstarAppInjected)(ACTIONS)
+  return {
+    ctx, fiber, entry, injected, startSession, clearSession, listSites, createSite, listSpatial, patchSpatial,
+  }
+}
+
+describe('ui-gstar client apply', () => {
+  it('owns the DSH root, declares the conversation tree, and exposes only Host station projections', async () => {
+    const subject = await setup()
+
+    expect(inject).toEqual([
+      'slots', 'sessions', 'workspaces', 'remote', 'remote.gstarSites', 'remote.gstarSpatial',
+    ])
+    expect(subject.entry.component).toBe(GstarApp)
+    expect(subject.ctx.slots.spec('conversation')).toEqual({ kind: 'single', scope: 'session-maybe' })
+    expect(subject.ctx.slots.spec('details')).toEqual({ kind: 'single', scope: 'session' })
+    expect(subject.ctx.slots.spec('shell.overlay')).toEqual({ kind: 'list', scope: 'root' })
+    expect(subject.ctx.slots.spec('conversation.hero.workspace.directoryFlow'))
+      .toEqual({ kind: 'single', scope: 'root' })
+
+    await vi.waitFor(() => {
+      expect(subject.injected.hooks.sites.getSnapshot()).toEqual({ items: [SITE], phase: 'ready' })
+      expect(subject.injected.hooks.spatial.getSnapshot()).toEqual({
+        items: [{ workspaceId: SITE.workspaceId, aois: [] }], phase: 'ready',
+      })
+    })
+    subject.injected.openSite(SITE.workspaceId as never)
+    expect(subject.clearSession).toHaveBeenCalledOnce()
+    expect(subject.startSession).toHaveBeenCalledWith(SITE.workspaceId)
+
+    await subject.fiber.dispose()
+    expect(subject.ctx.slots.entries('root')).toHaveLength(0)
+  })
+
+  it('uses the composed DSH directory-flow hole for station creation', async () => {
+    const subject = await setup()
+    expect(subject.injected.hooks.directoryFlow.getSnapshot()).toBe(false)
+    const disposeFlow = subject.ctx.slots.register(
       { name: 'conversation.hero.workspace.directoryFlow' },
       () => null,
     )
-    expect(injected.hooks.directoryFlow.getSnapshot()).toBe(true)
-    disposeFlow()
-    expect(injected.hooks.directoryFlow.getSnapshot()).toBe(false)
-    await vi.waitFor(() => {
-      expect(injected.sites.getSnapshot()).toEqual({ items: [site], phase: 'ready' })
-    })
-    await expect(injected.createSite({ path: site.path, title: site.title })).resolves.toEqual(site)
-    expect(create).toHaveBeenCalledWith({ path: site.path, title: site.title })
-    expect(list).toHaveBeenCalledTimes(2)
+    expect(subject.injected.hooks.directoryFlow.getSnapshot()).toBe(true)
 
-    await fiber.dispose()
-    expect(ctx.slots.entries('root')).toHaveLength(0)
-    expect(ctx.slots.spec('root')).toEqual({ kind: 'single', scope: 'root' })
+    await expect(subject.injected.createSite({ path: SITE.path })).resolves.toEqual(SITE)
+    expect(subject.createSite).toHaveBeenCalledWith({ path: SITE.path })
+    expect(subject.listSites).toHaveBeenCalledTimes(2)
+    expect(subject.listSpatial).toHaveBeenCalledTimes(2)
+    disposeFlow()
   })
 
-  it('surfaces a typed Remote failure to the root component action', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SlotRegistry).await()
-    class RemoteService extends Service {
-      constructor(serviceCtx: Context) { super(serviceCtx, 'remote') }
+  it('persists location through the spatial Remote and refreshes the projection', async () => {
+    const subject = await setup()
+    const request = {
+      workspaceId: SITE.workspaceId as never,
+      location: { longitude: 113, latitude: 23 },
     }
-    new RemoteService(ctx)
-    const list = vi.fn().mockResolvedValue({
-      ok: false,
-      error: { code: 'INTERNAL', message: 'membership unavailable' },
-    })
-    ctx.provide('remote.gstarSites', {
-      list,
-      create: () => Promise.resolve({ ok: false, error: { code: 'NOT_FOUND', message: 'directory missing' } }),
-    })
-    await ctx.plugin({ inject: [...inject], apply }).await()
-    const entry = ctx.slots.entries('root')[0]!
-    const injected = (entry.inject as unknown as () => GstarAppInjected)()
+    await expect(subject.injected.patchSpatial(request)).resolves.toMatchObject(request)
+    expect(subject.patchSpatial).toHaveBeenCalledWith(request)
+    expect(subject.listSpatial).toHaveBeenCalledTimes(2)
+  })
 
+  it('surfaces typed station and spatial Remote failures independently', async () => {
+    const subject = await setup({
+      siteList: { ok: false, error: { code: 'INTERNAL', message: 'membership unavailable' } },
+      spatialList: { ok: false, error: { code: 'INTERNAL', message: 'spatial unavailable' } },
+    })
     await vi.waitFor(() => {
-      expect(injected.sites.getSnapshot()).toEqual({
-        items: [],
-        phase: 'error',
-        error: 'INTERNAL: membership unavailable',
-      })
+      expect(subject.injected.hooks.sites.getSnapshot().phase).toBe('error')
+      expect(subject.injected.hooks.spatial.getSnapshot().phase).toBe('error')
     })
-
-    await expect(injected.createSite({ path: '/missing' }))
-      .rejects.toThrow('gstarSites.create failed: NOT_FOUND: directory missing')
   })
 })
 

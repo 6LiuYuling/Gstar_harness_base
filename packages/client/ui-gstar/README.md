@@ -2,11 +2,11 @@
 
 English | [中文](README.zh.md)
 
-GSTAR browser root shell. It occupies the built-in `root` slot and renders the Host-classified `gstarSites.list` projection, so generic `dsh web` Workspaces do not enter the station surface. Unavailable region, source, gate, and pipeline metrics remain pending instead of manufacturing product data in React.
+GSTAR browser root shell. It occupies the built-in `root` slot and renders a three-column station workspace: the Host-classified station list on the left, a Cesium globe in the center, and the standard DSH Conversation occupant on the right. Generic `dsh web` Workspaces do not enter the station surface.
 
-The registering Client plugin owns a React-free station runtime backed by the GSTAR Remote namespace. It loads `gstarSites.list`, exposes an immutable snapshot store, and refreshes after `gstarSites.create`; React never owns or filters the authoritative station membership.
+The registering Client plugin owns React-free station and spatial runtimes backed by `gstarSites` and `gstarSpatial` Remote namespaces. Cesium projects only Host snapshots: persisted station markers, AOI Polygon/MultiPolygon geometry, entity fields, and provenance. Selecting a station starts a DSH session for that station Workspace and lets the existing `ui-conversation` plugin render into the declared `conversation` slot.
 
-The root entry declares the same two directory-flow holes used by `dsh web` while the standard `ui-workspace` row is absent. `directory-picker-auto` therefore supplies the native chooser or in-app Select Workspace Directory dialog unchanged. The selected Host path goes directly to `gstarSites.create`; GSTAR contains no manual path input or copied filesystem browser.
+The root entry declares the same directory-flow hole used by `dsh web` while the standard `ui-workspace` row stays absent. `directory-picker-auto` therefore supplies the native chooser or in-app Select Workspace Directory dialog unchanged. The selected Host path goes to `gstarSites.create`; a newly classified station then enters globe-location mode rather than inventing coordinates.
 
 ## Model Experience
 
@@ -18,4 +18,6 @@ None.
 
 ## Known Limitations and Deferred Work
 
-- Region assets and plugin/pipeline projections are not yet wired; their navigation seats identify the next Host services without presenting mock records.
+- AOIs appear only after a Host pipeline publishes them through `gstarSpatial.patch`; the browser does not generate sample AOIs or provenance.
+- The first map Provider uses network OpenStreetMap tiles and an ellipsoid terrain Provider; deployments still need their own imagery policy and offline strategy.
+- The narrow conversation column reuses the complete DSH conversation tree and the read-only `gstar_station_data` tool; data mutation and pipeline-control tools are deferred.
