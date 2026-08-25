@@ -339,7 +339,7 @@ export function GstarApp({
           {spatialState.phase === 'error' ? (
             <p className={css.mapError} role="alert">空间数据同步失败：{spatialState.error}</p>
           ) : null}
-          {spatialError === undefined ? null : <p className={css.mapError} role="alert">位置保存失败：{spatialError}</p>}
+          {spatialError === undefined ? null : <p className={css.mapError} role="alert">自动定位提示：{spatialError}</p>}
           {selectedAoi === undefined ? null : (
             <AoiInspector aoi={selectedAoi} onClose={() => { actions.closeAoi() }} />
           )}
@@ -347,7 +347,7 @@ export function GstarApp({
             <span><i data-kind="site" />局点</span>
             <span><i data-kind="aoi" />AOI</span>
             <span>点击局点缩放 · 点击 AOI 查看实体与溯源</span>
-            <span>定位数据 © OpenStreetMap contributors / Nominatim</span>
+            <span>定位数据 © OpenStreetMap contributors / Nominatim / Photon</span>
           </div>
         </section>
 

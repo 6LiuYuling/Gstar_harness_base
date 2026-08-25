@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-21-gstar-profile-shell.md
-2026-08-21-gstar-profile-shell.md: d87a3ca845cba748e67d4460fc85a67c3a84271c
-2026-08-21-gstar-profile-shell.zh.md: 41be30d7db0567b38eee8b1768cd7b627dacb68f
+2026-08-21-gstar-profile-shell.md: 6a1007bd5dc1ef750ee945cf72f7cf3665397309
+2026-08-21-gstar-profile-shell.zh.md: e933dd17d11a7a869ccb40d5fa5781f2ca17d9b2

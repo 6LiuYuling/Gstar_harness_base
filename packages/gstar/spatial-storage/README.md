@@ -6,7 +6,7 @@ English | [中文](README.zh.md)
 
 Writes are serialized through a Provider-owned operation chain and complete before the domain closes. Omitted location or AOI fields retain the durable value; an empty AOI array is an explicit publication that clears the current AOI projection.
 
-`locate()` uses the injected DSH `ctx.web` seam to query the fixed Nominatim endpoint, removes a trailing Chinese station suffix before falling back to the exact title, validates the returned WGS84 coordinate, and persists it through the same spatial write path. The browser never performs geocoding requests directly.
+`locate()` uses the injected DSH `ctx.web` seam to try Nominatim and then Photon, removes a trailing Chinese station suffix before falling back to the exact title, validates the returned WGS84 coordinate, and persists it through the same spatial write path. Transport, HTTP, and malformed-payload failures fall through to the next Host provider and retain their cause chain for Remote diagnostics. The browser never performs geocoding requests directly.
 
 ## Model Experience
 
@@ -21,4 +21,4 @@ None.
 - The current KV record stores only the latest spatial projection and does not retain data-version history.
 - Large entity collections remain inline with each station record; object storage and indexed spatial databases are future Providers behind the same Service Definition.
 - Authorization is limited to durable station membership rather than an authenticated user policy.
-- Public Nominatim availability and usage policy remain external deployment dependencies; production deployments can replace this Provider behind the same Service Definition.
+- Public Nominatim and Photon availability and usage policies remain external deployment dependencies; production deployments can replace this Provider behind the same Service Definition.

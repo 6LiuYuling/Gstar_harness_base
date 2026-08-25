@@ -25,10 +25,30 @@ export type { GstarSpatialRecord } from './spec.ts'
 type GstarAoiRecord = GstarSpatialRecord['aois'][number]
 
 const NOMINATIM_SEARCH_ENDPOINT = 'https://nominatim.openstreetmap.org/search'
+const PHOTON_SEARCH_ENDPOINT = 'https://photon.komoot.io/api/'
 
 interface NominatimResult {
   readonly lat?: unknown
   readonly lon?: unknown
+}
+
+interface PhotonResponse {
+  readonly features?: unknown
+}
+
+interface PhotonFeature {
+  readonly geometry?: unknown
+}
+
+interface PhotonPoint {
+  readonly type?: unknown
+  readonly coordinates?: unknown
+}
+
+interface Geocoder {
+  readonly name: string
+  url(query: string): URL
+  decode(content: string): GstarCoordinate | undefined
 }
 
 /** Candidate queries, removing a UI station suffix before falling back to the exact title. */
@@ -40,23 +60,94 @@ function locationQueries(value: string): readonly string[] {
 }
 
 /** Decode the first valid WGS84 point returned by Nominatim. */
-function decodeNominatim(content: string): GstarCoordinate | undefined {
+function decodeJson(content: string): unknown {
   let value: unknown
   try {
     value = JSON.parse(content)
   } catch (cause) {
     throw new Error('GSTAR geocoder returned invalid JSON', { cause })
   }
+  return value
+}
+
+/** Validate and construct one WGS84 point. */
+function coordinate(longitude: unknown, latitude: unknown): GstarCoordinate | undefined {
+  const lon = typeof longitude === 'string' || typeof longitude === 'number'
+    ? Number(longitude) : Number.NaN
+  const lat = typeof latitude === 'string' || typeof latitude === 'number'
+    ? Number(latitude) : Number.NaN
+  return Number.isFinite(lon) && lon >= -180 && lon <= 180
+    && Number.isFinite(lat) && lat >= -90 && lat <= 90
+    ? { longitude: lon, latitude: lat }
+    : undefined
+}
+
+/** Decode the first valid WGS84 point returned by Nominatim. */
+function decodeNominatim(content: string): GstarCoordinate | undefined {
+  const value = decodeJson(content)
   if (!Array.isArray(value)) throw new Error('GSTAR geocoder returned a non-array payload')
   for (const candidate of value as NominatimResult[]) {
-    const longitude = typeof candidate.lon === 'string' ? Number(candidate.lon) : Number.NaN
-    const latitude = typeof candidate.lat === 'string' ? Number(candidate.lat) : Number.NaN
-    if (Number.isFinite(longitude) && longitude >= -180 && longitude <= 180
-      && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90) {
-      return { longitude, latitude }
-    }
+    const result = coordinate(candidate.lon, candidate.lat)
+    if (result !== undefined) return result
   }
   return undefined
+}
+
+/** Decode the first valid GeoJSON Point returned by Photon. */
+function decodePhoton(content: string): GstarCoordinate | undefined {
+  const value = decodeJson(content) as PhotonResponse | null
+  if (value === null || typeof value !== 'object' || !Array.isArray(value.features)) {
+    throw new Error('GSTAR Photon geocoder returned a non-FeatureCollection payload')
+  }
+  for (const feature of value.features as PhotonFeature[]) {
+    if (feature === null || typeof feature !== 'object'
+      || feature.geometry === null || typeof feature.geometry !== 'object') continue
+    const geometry = feature.geometry as PhotonPoint
+    if (geometry.type !== 'Point' || !Array.isArray(geometry.coordinates)) continue
+    const result = coordinate(geometry.coordinates[0], geometry.coordinates[1])
+    if (result !== undefined) return result
+  }
+  return undefined
+}
+
+const GEOCODERS: readonly Geocoder[] = [
+  {
+    name: 'Nominatim',
+    url(query) {
+      const url = new URL(NOMINATIM_SEARCH_ENDPOINT)
+      url.searchParams.set('format', 'jsonv2')
+      url.searchParams.set('limit', '1')
+      url.searchParams.set('accept-language', 'zh-CN')
+      url.searchParams.set('q', query)
+      return url
+    },
+    decode: decodeNominatim,
+  },
+  {
+    name: 'Photon',
+    url(query) {
+      const url = new URL(PHOTON_SEARCH_ENDPOINT)
+      url.searchParams.set('limit', '1')
+      url.searchParams.set('lang', 'zh')
+      url.searchParams.set('q', query)
+      return url
+    },
+    decode: decodePhoton,
+  },
+]
+
+/** Render the actionable portion of a fetch cause chain across the Remote boundary. */
+function errorChain(value: unknown): string {
+  const messages: string[] = []
+  const seen = new Set<unknown>()
+  let current: unknown = value
+  while (current !== undefined && current !== null && !seen.has(current) && messages.length < 4) {
+    seen.add(current)
+    const message = current instanceof Error ? current.message : String(current)
+    if (messages.at(-1) !== message) messages.push(message)
+    current = current instanceof Error ? current.cause : undefined
+  }
+  return messages.join(' <- ')
 }
 
 /** Copy a coordinate while omitting absent optional fields at the exact-type boundary. */
@@ -185,21 +276,37 @@ export class StorageGstarSpatialService extends GstarSpatialService {
     if (!sites.some(site => site.workspaceId === request.workspaceId)) {
       throw new Error(`gstarSpatial.locate: Workspace ${request.workspaceId} is not a GSTAR station`)
     }
+    const failures: string[] = []
+    let completedLookups = 0
     for (const query of locationQueries(request.query)) {
-      const url = new URL(NOMINATIM_SEARCH_ENDPOINT)
-      url.searchParams.set('format', 'jsonv2')
-      url.searchParams.set('limit', '1')
-      url.searchParams.set('accept-language', 'zh-CN')
-      url.searchParams.set('q', query)
-      const result = await this.ctx.web.fetch({ url: url.href })
-      if (result.statusCode < 200 || result.statusCode >= 300) {
-        throw new Error(`GSTAR geocoder returned HTTP ${String(result.statusCode)}`)
+      for (const geocoder of GEOCODERS) {
+        try {
+          const result = await this.ctx.web.fetch({ url: geocoder.url(query).href })
+          if (result.statusCode < 200 || result.statusCode >= 300) {
+            throw new Error(`HTTP ${String(result.statusCode)}`)
+          }
+          if (result.truncated) throw new Error('response exceeded the configured fetch limit')
+          const resolved = geocoder.decode(result.body.content)
+          completedLookups++
+          if (resolved !== undefined) {
+            return this.patch({ workspaceId: request.workspaceId, location: resolved })
+          }
+        } catch (error) {
+          failures.push(`${geocoder.name}: ${errorChain(error)}`)
+        }
       }
-      if (result.truncated) throw new Error('GSTAR geocoder response exceeded the configured fetch limit')
-      const coordinate = decodeNominatim(result.body.content)
-      if (coordinate !== undefined) return this.patch({ workspaceId: request.workspaceId, location: coordinate })
     }
-    throw new Error(`未找到局点“${request.query.trim()}”的地理位置，请输入包含城市或行政区的完整名称`)
+    if (completedLookups > 0) {
+      throw new Error(`未找到局点“${request.query.trim()}”的地理位置，请输入包含城市或行政区的完整名称`)
+    }
+    if (failures.length > 0) {
+      const diagnostics = [...new Set(failures)].join('；')
+      throw new Error(
+        `局点自动定位服务暂不可用（已尝试 Nominatim 与 Photon）：${diagnostics}`
+        + '。请检查 DSH 启动环境的 HTTP_PROXY/HTTPS_PROXY、企业 CA 或外网策略后重试',
+      )
+    }
+    throw new Error('局点自动定位未获得任何提供方响应')
   }
 
   /** Serialize membership checks and durable spatial commits. */

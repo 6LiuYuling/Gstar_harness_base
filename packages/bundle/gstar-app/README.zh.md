@@ -23,5 +23,5 @@
 ## 已知限制与暂缓事项
 
 - 在真实采集/处理流水线通过空间 Service 发布前，AOI 记录保持为空。
-- 底图影像目前使用暗色化 Esri World Imagery 卫星瓦片，自动定位使用公共 Nominatim，两者都需要网络访问。
+- 底图影像目前使用暗色化 Esri World Imagery 卫星瓦片，自动定位使用公共 Nominatim 并以 Photon 降级，两者都需要网络访问。
 - 数据源配置、数据处理、流水线执行与变更型 Agent 工具仍属于后续 GSTAR 能力；随附的 `gstar_station_data` 工具只读。
