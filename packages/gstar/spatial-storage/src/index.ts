@@ -302,7 +302,7 @@ function snapshot(workspaceId: WorkspaceId, record?: GstarSpatialRecord): GstarS
 export class StorageGstarSpatialService extends GstarSpatialService {
   static inject = ['storageDomain', 'gstarSites', 'web']
 
-  private stations?: KvTable<WorkspaceId, GstarSpatialRecord>
+  private stations: KvTable<WorkspaceId, GstarSpatialRecord> | undefined
   private readonly deletingStations = new Set<WorkspaceId>()
   private operationTail: Promise<void> = Promise.resolve()
   private operationAdmissionOpen = true
