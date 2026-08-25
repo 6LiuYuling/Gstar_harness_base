@@ -47,6 +47,7 @@ export function apply(ctx: ClientContext): void {
       ctx.workspaces.startSession(workspaceId)
     },
     patchSpatial: request => spatial.patch(request),
+    locateSpatial: request => spatial.locate(request),
     hooks: { directoryFlow, sites: sites.list, spatial: spatial.list },
   })
 

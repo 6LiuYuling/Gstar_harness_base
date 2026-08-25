@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 Provider-neutral GSTAR spatial Service Definition on `ctx.gstarSpatial`. It keeps station location, published AOI geometry, normalized entity fields, and acquisition provenance behind a Host capability keyed by the station's durable `WorkspaceId`. The browser receives typed snapshots through generated Typert Remote adapters; Cesium is only a projection consumer and never becomes the business-data authority.
 
-`list()` returns one spatial snapshot per classified station. `patch({ workspaceId, location?, aois? })` retains omitted fields, so station placement and pipeline AOI publication can commit independently. AOIs accept WGS84 Polygon or MultiPolygon geometry and carry their entity fields and provenance records in the same publication snapshot.
+`list()` returns one spatial snapshot per classified station. `locate({ workspaceId, query })` asks the active Host Provider to resolve the user-supplied station name and persist its marker. `patch({ workspaceId, location?, aois? })` retains omitted fields, so automatic station location and pipeline AOI publication can commit independently. AOIs accept WGS84 Polygon or MultiPolygon geometry and carry their entity fields and provenance records in the same publication snapshot.
 
 ## Model Experience
 

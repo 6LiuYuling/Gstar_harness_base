@@ -168,6 +168,88 @@
   cursor: not-allowed;
 }
 
+.createForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 10px 0;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-state-business-primary);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 6%, var(--dsw-alias-bg-base));
+}
+
+.createForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.createForm label > span {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 650;
+}
+
+.createForm input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 9px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  outline: none;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.createForm input:focus {
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary) 16%, transparent);
+}
+
+.directoryField {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.directoryField > span {
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 10px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.createForm button {
+  padding: 7px 9px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-primary);
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.createForm > button[type='submit'] {
+  border-color: var(--dsw-alias-state-business-primary);
+  background: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-brand-primary-invert);
+  font-weight: 650;
+}
+
+.createForm button:disabled,
+.locateButton:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
 .inlineError,
 .mapError {
   margin: 10px 12px 0;

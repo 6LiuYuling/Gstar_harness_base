@@ -101,3 +101,11 @@ export interface GstarSpatialPatchRequest {
   /** Complete AOI replacement when a processing pipeline publishes a data version. */
   readonly aois?: readonly GstarAoiSnapshot[]
 }
+
+/** Resolve a station name through the active Host geocoder and persist its marker. */
+export interface GstarSpatialLocateRequest {
+  /** Owning station Workspace identity. */
+  readonly workspaceId: WorkspaceId
+  /** User-supplied station name; the Provider may retry without a trailing station suffix. */
+  readonly query: string
+}

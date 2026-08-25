@@ -2,6 +2,17 @@
 # runtime, theme, locale, and renderer continue to come from dsh-web-app.
 
 - insert:
+    # Fixed-origin Host retrieval for station-name geocoding. The model-facing
+    # web_fetch tool remains disabled; only gstarSpatial constructs the URL.
+    - id: gstar-web-fetch-http
+      name: '@deepseek-ai/dsh-web-fetch-http'
+      config:
+        maxResponseBytes: 65536
+        maxBodyChars: 32768
+        timeoutMs: 15000
+        maxRedirects: 1
+        userAgent: 'GSTAR-Harness/0.1 (+https://github.com/6LiuYuling/Gstar_harness_base)'
+
     # Workspace remains the durable station authority. This GSTAR provider
     # publishes the station-shaped Host and Remote capability over it.
     - id: gstar-sites

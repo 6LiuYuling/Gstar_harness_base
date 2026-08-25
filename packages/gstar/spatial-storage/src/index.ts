@@ -6,10 +6,12 @@
 import { Service, type Context } from '@deepseek-ai/cordis'
 import GstarSpatialService from '@deepseek-ai/dsh-gstar-spatial'
 import type {
-  GstarAoiSnapshot, GstarSpatialPatchRequest, GstarSpatialSnapshot,
+  GstarAoiSnapshot, GstarCoordinate, GstarSpatialLocateRequest,
+  GstarSpatialPatchRequest, GstarSpatialSnapshot,
 } from '@deepseek-ai/dsh-gstar-spatial/types'
 import type {} from '@deepseek-ai/dsh-gstar-site'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
+import type {} from '@deepseek-ai/dsh-web'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { gstarSpatialDomainSpec, type GstarSpatialRecord } from './spec.ts'
 
@@ -21,6 +23,41 @@ export {
 export type { GstarSpatialRecord } from './spec.ts'
 
 type GstarAoiRecord = GstarSpatialRecord['aois'][number]
+
+const NOMINATIM_SEARCH_ENDPOINT = 'https://nominatim.openstreetmap.org/search'
+
+interface NominatimResult {
+  readonly lat?: unknown
+  readonly lon?: unknown
+}
+
+/** Candidate queries, removing a UI station suffix before falling back to the exact title. */
+function locationQueries(value: string): readonly string[] {
+  const query = value.trim()
+  if (query.length === 0) throw new Error('gstarSpatial.locate requires a station name')
+  const withoutSuffix = query.replace(/(?:局点|站点)$/u, '').trim()
+  return withoutSuffix.length > 0 && withoutSuffix !== query ? [withoutSuffix, query] : [query]
+}
+
+/** Decode the first valid WGS84 point returned by Nominatim. */
+function decodeNominatim(content: string): GstarCoordinate | undefined {
+  let value: unknown
+  try {
+    value = JSON.parse(content)
+  } catch (cause) {
+    throw new Error('GSTAR geocoder returned invalid JSON', { cause })
+  }
+  if (!Array.isArray(value)) throw new Error('GSTAR geocoder returned a non-array payload')
+  for (const candidate of value as NominatimResult[]) {
+    const longitude = typeof candidate.lon === 'string' ? Number(candidate.lon) : Number.NaN
+    const latitude = typeof candidate.lat === 'string' ? Number(candidate.lat) : Number.NaN
+    if (Number.isFinite(longitude) && longitude >= -180 && longitude <= 180
+      && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90) {
+      return { longitude, latitude }
+    }
+  }
+  return undefined
+}
 
 /** Copy a coordinate while omitting absent optional fields at the exact-type boundary. */
 function copyCoordinate(coordinate: {
@@ -92,7 +129,7 @@ function snapshot(workspaceId: WorkspaceId, record?: GstarSpatialRecord): GstarS
 
 /** Durable spatial provider restricted to Workspaces classified as GSTAR stations. */
 export class StorageGstarSpatialService extends GstarSpatialService {
-  static inject = ['storageDomain', 'gstarSites']
+  static inject = ['storageDomain', 'gstarSites', 'web']
 
   private stations?: KvTable<WorkspaceId, GstarSpatialRecord>
   private operationTail: Promise<void> = Promise.resolve()
@@ -141,6 +178,28 @@ export class StorageGstarSpatialService extends GstarSpatialService {
       await stations.put(request.workspaceId, next)
       return snapshot(request.workspaceId, next)
     })
+  }
+
+  override async locate(request: GstarSpatialLocateRequest): Promise<GstarSpatialSnapshot> {
+    const sites = await this.ctx.gstarSites.list()
+    if (!sites.some(site => site.workspaceId === request.workspaceId)) {
+      throw new Error(`gstarSpatial.locate: Workspace ${request.workspaceId} is not a GSTAR station`)
+    }
+    for (const query of locationQueries(request.query)) {
+      const url = new URL(NOMINATIM_SEARCH_ENDPOINT)
+      url.searchParams.set('format', 'jsonv2')
+      url.searchParams.set('limit', '1')
+      url.searchParams.set('accept-language', 'zh-CN')
+      url.searchParams.set('q', query)
+      const result = await this.ctx.web.fetch({ url: url.href })
+      if (result.statusCode < 200 || result.statusCode >= 300) {
+        throw new Error(`GSTAR geocoder returned HTTP ${String(result.statusCode)}`)
+      }
+      if (result.truncated) throw new Error('GSTAR geocoder response exceeded the configured fetch limit')
+      const coordinate = decodeNominatim(result.body.content)
+      if (coordinate !== undefined) return this.patch({ workspaceId: request.workspaceId, location: coordinate })
+    }
+    throw new Error(`未找到局点“${request.query.trim()}”的地理位置，请输入包含城市或行政区的完整名称`)
   }
 
   /** Serialize membership checks and durable spatial commits. */

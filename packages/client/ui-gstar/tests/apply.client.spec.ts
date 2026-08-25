@@ -39,14 +39,18 @@ async function setup(options: { readonly siteList?: unknown; readonly spatialLis
   const patchSpatial = vi.fn().mockResolvedValue({
     ok: true, value: { workspaceId: SITE.workspaceId, aois: [], location: { longitude: 113, latitude: 23 } },
   })
+  const locateSpatial = vi.fn().mockResolvedValue({
+    ok: true, value: { workspaceId: SITE.workspaceId, aois: [], location: { longitude: 113, latitude: 23 } },
+  })
   ctx.provide('remote.gstarSites', { list: listSites, create: createSite })
-  ctx.provide('remote.gstarSpatial', { list: listSpatial, patch: patchSpatial })
+  ctx.provide('remote.gstarSpatial', { list: listSpatial, patch: patchSpatial, locate: locateSpatial })
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
   const entry = ctx.slots.entries('root')[0]!
   const injected = (entry.inject as unknown as (actions: typeof ACTIONS) => GstarAppInjected)(ACTIONS)
   return {
-    ctx, fiber, entry, injected, startSession, clearSession, listSites, createSite, listSpatial, patchSpatial,
+    ctx, fiber, entry, injected, startSession, clearSession, listSites, createSite,
+    listSpatial, patchSpatial, locateSpatial,
   }
 }
 
@@ -87,8 +91,8 @@ describe('ui-gstar client apply', () => {
     )
     expect(subject.injected.hooks.directoryFlow.getSnapshot()).toBe(true)
 
-    await expect(subject.injected.createSite({ path: SITE.path })).resolves.toEqual(SITE)
-    expect(subject.createSite).toHaveBeenCalledWith({ path: SITE.path })
+    await expect(subject.injected.createSite({ path: SITE.path, title: SITE.title })).resolves.toEqual(SITE)
+    expect(subject.createSite).toHaveBeenCalledWith({ path: SITE.path, title: SITE.title })
     expect(subject.listSites).toHaveBeenCalledTimes(2)
     expect(subject.listSpatial).toHaveBeenCalledTimes(2)
     disposeFlow()
@@ -103,6 +107,13 @@ describe('ui-gstar client apply', () => {
     await expect(subject.injected.patchSpatial(request)).resolves.toMatchObject(request)
     expect(subject.patchSpatial).toHaveBeenCalledWith(request)
     expect(subject.listSpatial).toHaveBeenCalledTimes(2)
+
+    const locateRequest = { workspaceId: SITE.workspaceId as never, query: SITE.title }
+    await expect(subject.injected.locateSpatial(locateRequest)).resolves.toMatchObject({
+      workspaceId: SITE.workspaceId, location: { longitude: 113, latitude: 23 },
+    })
+    expect(subject.locateSpatial).toHaveBeenCalledWith(locateRequest)
+    expect(subject.listSpatial).toHaveBeenCalledTimes(3)
   })
 
   it('surfaces typed station and spatial Remote failures independently', async () => {

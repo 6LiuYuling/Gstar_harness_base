@@ -3,7 +3,7 @@ import * as Cesium from 'cesium'
 import type { Cartesian2, Entity, ScreenSpaceEventHandler, Viewer } from 'cesium'
 import type { WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  GstarCoordinate, GstarLinearRing, GstarSpatialSnapshot,
+  GstarLinearRing, GstarSpatialSnapshot,
 } from '@deepseek-ai/dsh-gstar-spatial/types'
 import type { GstarSiteSnapshot } from '@deepseek-ai/dsh-gstar-site/types'
 import css from './CesiumGlobe.module.css'
@@ -31,10 +31,8 @@ export interface CesiumGlobeProps {
   readonly spatial: readonly GstarSpatialSnapshot[]
   readonly selectedSiteId?: WorkspaceId
   readonly selectedAoiId?: string
-  readonly locatingSiteId?: WorkspaceId
   readonly onSelectSite: (workspaceId: WorkspaceId) => void
   readonly onSelectAoi: (workspaceId: WorkspaceId, aoiId: string) => void
-  readonly onLocate: (workspaceId: WorkspaceId, coordinate: GstarCoordinate) => void
 }
 
 /** Convert one persisted linear ring into Cesium world positions. */
@@ -102,12 +100,18 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
     let viewer: Viewer | undefined
     let handler: ScreenSpaceEventHandler | undefined
     try {
+      const satelliteLayer = new Cesium.ImageryLayer(new Cesium.UrlTemplateImageryProvider({
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        credit: new Cesium.Credit('Esri, Maxar, Earthstar Geographics, and the GIS User Community'),
+      }))
+      satelliteLayer.brightness = 0.46
+      satelliteLayer.contrast = 1.28
+      satelliteLayer.saturation = 0.56
+      satelliteLayer.gamma = 0.9
       const createdViewer = new Cesium.Viewer(container, {
         animation: false,
         baseLayerPicker: false,
-        baseLayer: new Cesium.ImageryLayer(new Cesium.OpenStreetMapImageryProvider({
-          url: 'https://tile.openstreetmap.org/',
-        })),
+        baseLayer: satelliteLayer,
         fullscreenButton: false,
         geocoder: false,
         homeButton: false,
@@ -122,24 +126,14 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
         maximumRenderTimeChange: Number.POSITIVE_INFINITY,
       })
       viewer = createdViewer
+      if (createdViewer.scene.globe !== undefined) {
+        createdViewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#050a10') ?? Cesium.Color.BLACK
+      }
       const picks = new Map<string, GlobePick>()
       const createdHandler = new Cesium.ScreenSpaceEventHandler(createdViewer.scene.canvas)
       handler = createdHandler
       createdHandler.setInputAction((movement: { position: Cartesian2 }) => {
         const current = callbacksRef.current
-        if (current.locatingSiteId !== undefined) {
-          const ellipsoid = createdViewer.scene.globe?.ellipsoid
-          if (ellipsoid === undefined) return
-          const cartesian = createdViewer.camera.pickEllipsoid(movement.position, ellipsoid)
-          if (cartesian === undefined) return
-          const cartographic = Cesium.Cartographic.fromCartesian(cartesian, ellipsoid)
-          current.onLocate(current.locatingSiteId, {
-            longitude: Cesium.Math.toDegrees(cartographic.longitude),
-            latitude: Cesium.Math.toDegrees(cartographic.latitude),
-            height: cartographic.height,
-          })
-          return
-        }
         const picked = createdViewer.scene.pick(movement.position) as { id?: Entity } | undefined
         const id = picked?.id?.id
         if (typeof id !== 'string') return
@@ -239,7 +233,7 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
   }, [props.sites, props.spatial, props.selectedSiteId, props.selectedAoiId, runtime])
 
   return (
-    <div className={css.root} data-locating={props.locatingSiteId === undefined ? undefined : ''}>
+    <div className={css.root}>
       <div ref={containerRef} className={css.canvas} aria-label="GSTAR Cesium 地球" />
       {runtime === undefined && error === undefined ? <p className={css.status}>正在加载 Cesium 地球…</p> : null}
       {error === undefined ? null : <p className={css.status} role="alert">Cesium 加载失败：{error}</p>}

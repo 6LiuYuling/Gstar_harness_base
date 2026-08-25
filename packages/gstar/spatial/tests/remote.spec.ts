@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import GstarSpatialService from '../src/index.ts'
-import type { GstarSpatialPatchRequest, GstarSpatialSnapshot } from '../src/types.ts'
+import type {
+  GstarSpatialLocateRequest, GstarSpatialPatchRequest, GstarSpatialSnapshot,
+} from '../src/types.ts'
 import * as invariant from '../src/invariant.ts'
 
 const SPATIAL: GstarSpatialSnapshot = Object.freeze({
@@ -15,6 +17,7 @@ const SPATIAL: GstarSpatialSnapshot = Object.freeze({
 
 class FixtureGstarSpatial extends GstarSpatialService {
   readonly patches: GstarSpatialPatchRequest[] = []
+  readonly locations: GstarSpatialLocateRequest[] = []
 
   override list(): Promise<readonly GstarSpatialSnapshot[]> {
     return Promise.resolve(Object.freeze([SPATIAL]))
@@ -22,6 +25,11 @@ class FixtureGstarSpatial extends GstarSpatialService {
 
   override patch(request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot> {
     this.patches.push(request)
+    return Promise.resolve(SPATIAL)
+  }
+
+  override locate(request: GstarSpatialLocateRequest): Promise<GstarSpatialSnapshot> {
+    this.locations.push(request)
     return Promise.resolve(SPATIAL)
   }
 }
@@ -42,10 +50,13 @@ describe('gstar-spatial Service Definition', () => {
     const location = SPATIAL.location
     if (location === undefined) throw new Error('fixture requires a station location')
     const request: GstarSpatialPatchRequest = { workspaceId: SPATIAL.workspaceId, location }
+    const locateRequest: GstarSpatialLocateRequest = { workspaceId: SPATIAL.workspaceId, query: '广州局点' }
 
     await expect(ctx.gstarSpatial.remoteExportList()).resolves.toEqual([SPATIAL])
     await expect(ctx.gstarSpatial.remoteExportPatch(request)).resolves.toBe(SPATIAL)
+    await expect(ctx.gstarSpatial.remoteExportLocate(locateRequest)).resolves.toBe(SPATIAL)
     expect((ctx.gstarSpatial as FixtureGstarSpatial).patches).toEqual([request])
+    expect((ctx.gstarSpatial as FixtureGstarSpatial).locations).toEqual([locateRequest])
 
     await fiber.dispose()
     expect(ctx.get('gstarSpatial')).toBeUndefined()

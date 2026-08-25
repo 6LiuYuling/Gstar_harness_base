@@ -41,7 +41,7 @@ describe('GstarSiteRuntime', () => {
       phase: 'error',
       error: 'INTERNAL: unavailable',
     })
-    await expect(runtime.create({ path: '/missing' }))
+    await expect(runtime.create({ path: '/missing', title: '缺失局点' }))
       .rejects.toThrow('gstarSites.create failed: NOT_FOUND: directory missing')
   })
 

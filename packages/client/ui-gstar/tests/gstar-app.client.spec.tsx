@@ -12,10 +12,8 @@ vi.mock('../src/client/CesiumGlobe.tsx', () => ({
   CesiumGlobe: (props: {
     readonly sites: readonly GstarSiteSnapshot[]
     readonly selectedSiteId?: string
-    readonly locatingSiteId?: string
     readonly onSelectSite: (id: never) => void
     readonly onSelectAoi: (workspaceId: never, aoiId: string) => void
-    readonly onLocate: (workspaceId: never, location: { longitude: number; latitude: number }) => void
   }) => (
     <div aria-label="GSTAR Cesium 地球">
       {props.sites.map(site => (
@@ -26,14 +24,6 @@ vi.mock('../src/client/CesiumGlobe.tsx', () => ({
       {props.selectedSiteId === undefined ? null : (
         <button type="button" onClick={() => { props.onSelectAoi(props.selectedSiteId as never, 'aoi-1') }}>
           选择 AOI
-        </button>
-      )}
-      {props.locatingSiteId === undefined ? null : (
-        <button
-          type="button"
-          onClick={() => { props.onLocate(props.locatingSiteId as never, { longitude: 113.3, latitude: 23.1 }) }}
-        >
-          提交定位
         </button>
       )}
     </div>
@@ -91,6 +81,7 @@ function props(options: {
   readonly spatial?: readonly GstarSpatialSnapshot[]
   readonly createSite?: GstarAppProps['createSite']
   readonly patchSpatial?: GstarAppProps['patchSpatial']
+  readonly locateSpatial?: GstarAppProps['locateSpatial']
   readonly openSite?: GstarAppProps['openSite']
   readonly directoryAvailable?: boolean
 } = {}): GstarAppProps {
@@ -114,6 +105,7 @@ function props(options: {
     SessionProvider: ({ children }) => children('session-1' as never),
     createSite: options.createSite ?? vi.fn(),
     patchSpatial: options.patchSpatial ?? vi.fn(),
+    locateSpatial: options.locateSpatial ?? vi.fn(),
     openSite: options.openSite ?? vi.fn(),
     renderSlot,
     useSessions: (() => undefined) as GstarAppProps['useSessions'],
@@ -141,36 +133,40 @@ describe('GstarApp three-column shell', () => {
     expect(screen.getByTestId('dsh-conversation')).toBeTruthy()
   })
 
-  it('creates a station through the standard DSH directory flow and enters map-location mode', async () => {
+  it('creates a named station through the DSH directory flow and locates it automatically', async () => {
     const createSite = vi.fn().mockResolvedValue(SITE)
+    const locateSpatial = vi.fn().mockResolvedValue(AOI_SPATIAL)
     const openSite = vi.fn()
-    render(<GstarApp {...props({ createSite, openSite })} />)
+    render(<GstarApp {...props({ createSite, locateSpatial, openSite })} />)
 
     fireEvent.click(screen.getByRole('button', { name: '新增局点' }))
+    fireEvent.change(screen.getByPlaceholderText('例如：北京市朝阳区'), { target: { value: '广州局点' } })
+    fireEvent.click(screen.getByRole('button', { name: '选择目录' }))
     fireEvent.click(screen.getByRole('button', { name: '选择此目录' }))
+    fireEvent.click(screen.getByRole('button', { name: '创建并自动定位' }))
 
     await waitFor(() => {
-      expect(createSite).toHaveBeenCalledWith({ path: '/data/stations/new-site' })
+      expect(createSite).toHaveBeenCalledWith({ path: '/data/stations/new-site', title: '广州局点' })
+      expect(locateSpatial).toHaveBeenCalledWith({ workspaceId: SITE.workspaceId, query: '广州局点' })
     })
     expect(openSite).toHaveBeenCalledWith(SITE.workspaceId)
-    expect(screen.getByText('请在地球上点击局点所在位置')).toBeTruthy()
+    expect(screen.queryByText('请在地球上点击局点所在位置')).toBeNull()
   })
 
-  it('persists a globe-picked location through the Host spatial action', async () => {
-    const patchSpatial = vi.fn().mockResolvedValue({
+  it('retries automatic name-based location without asking for a globe click', async () => {
+    const locateSpatial = vi.fn().mockResolvedValue({
       workspaceId: SITE.workspaceId, aois: [], location: { longitude: 113.3, latitude: 23.1 },
     })
-    render(<GstarApp {...props({ sites: [SITE], spatial: [{ workspaceId: SITE.workspaceId, aois: [] }], patchSpatial })} />)
+    render(<GstarApp {...props({
+      sites: [SITE], spatial: [{ workspaceId: SITE.workspaceId, aois: [] }], locateSpatial,
+    })} />)
 
-    fireEvent.click(screen.getByRole('button', { name: '在地球上定位' }))
-    fireEvent.click(screen.getByRole('button', { name: '提交定位' }))
+    fireEvent.click(screen.getByRole('button', { name: '重新自动定位' }))
 
     await waitFor(() => {
-      expect(patchSpatial).toHaveBeenCalledWith({
-        workspaceId: SITE.workspaceId,
-        location: { longitude: 113.3, latitude: 23.1 },
-      })
+      expect(locateSpatial).toHaveBeenCalledWith({ workspaceId: SITE.workspaceId, query: SITE.title })
     })
+    expect(screen.queryByText('请在地球上点击局点所在位置')).toBeNull()
   })
 
   it('shows AOI entity fields and provenance from the Host snapshot', () => {

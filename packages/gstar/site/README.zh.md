@@ -4,7 +4,7 @@
 
 基于 `ctx.gstarSites` 的 GSTAR 局点 Service Definition，与具体 Provider 无关。局点直接使用持久化 `WorkspaceId` 作为身份，使后续 GSTAR 区域、数据源配置、处理器和流水线运行都能共享同一个稳定所有者，而无需修改通用 Workspace 记录。
 
-`list()` 按当前 Workspace Provider 的持久顺序返回不可变局点快照。`create({ path, title? })` 通过该 Provider 解析或创建局点；目录校验和路径规范化规则由 Provider 持有。Remote 适配器以 `gstarSites.list` 和 `gstarSites.create` 发布相同操作，供 Host 支撑的客户端组合使用。
+`list()` 按当前 Workspace Provider 的持久顺序返回不可变局点快照。`create({ path, title })` 通过该 Provider 解析或创建局点；用户输入的名称是必填字段，后续由 Host 用于自动地理编码。目录校验和路径规范化规则由 Provider 持有。Remote 适配器以 `gstarSites.list` 和 `gstarSites.create` 发布相同操作，供 Host 支撑的客户端组合使用。
 
 `GstarSiteSnapshot.updatedAt` 表示 Workspace 元数据变更时间，不是 GSTAR 数据更新时间。成功发布数据版本后，流水线领域负责持有 `lastSuccessfulUpdateAt`。
 

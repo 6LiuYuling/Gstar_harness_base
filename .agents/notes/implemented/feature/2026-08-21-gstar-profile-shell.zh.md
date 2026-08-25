@@ -18,7 +18,7 @@ GSTAR Shell 仅在一个持久化 DSH Workspace 被明确归类为局点后，�
 
 GSTAR 根插件是三栏 Client 插件：左侧是已分类局点列表，中间是 Cesium 地球，右侧是标准 DSH 对话。它按标准约定声明 `conversation`、`details` 和 `shell.overlay`，并通过自身根查看状态 store 提供 `ctx.layout` action face。这样无需挂载标准 `ui-layout` 根插件，即可保留 DSH Conversation、工具详情、Session 日志与 Agent 行为。选择局点会调用标准 Workspace Client 服务，为该 Workspace 启动 Session。
 
-Cesium 运行时文件不由第二套前端托管。`dsh-gstar-cesium-assets` 贡献一条 DSH Web Host 前缀路由，提供已安装的 Workers、ThirdParty、Assets 和 Widgets 目录；`ui-gstar` 打包匹配的 API，并把模块基址指向该路由。Cesium 只投影 Host 快照。未提交坐标的局点明确保持未定位；标准目录流程会让新分类局点进入由用户在地球上点击的位置提交动作，而不是伪造坐标。
+Cesium 运行时文件不由第二套前端托管。`dsh-gstar-cesium-assets` 贡献一条 DSH Web Host 前缀路由，提供已安装的 Workers、ThirdParty、Assets 和 Widgets 目录；`ui-gstar` 打包匹配的 API，并把模块基址指向该路由。Cesium 只在暗色卫星图层上投影 Host 快照。未提交坐标的局点明确保持未定位。创建时必须输入局点名称并使用标准目录流程；`gstarSpatial.locate` 通过固定来源的 Host `ctx.web` Provider 解析名称、持久化坐标，并让 Cesium 自动飞到已提交标记，不再要求浏览器端点击地图。
 
 右侧对话通过 `gstar_station_data` 读取同一 Host 空间快照；这是只由 GSTAR Bundle 加载的只读 DSH Tool Consumer。它从不可变的调用 Session cwd 推导局点权限，不接受模型提供的 Workspace id，先返回摘要再返回实体数组，并限制 AOI 详情的实体结果。普通 Workspace 或没有局点 cwd 的 Session 会被拒绝。
 
@@ -26,7 +26,7 @@ Cesium 运行时文件不由第二套前端托管。`dsh-gstar-cesium-assets` �
 
 `dsh-gstar-client-remotes` 只为 `gstar` Profile 选择生成的局点与空间 contribution，并将它们挂载到 DSH 标准 Client Remote carrier。`ui-gstar` 持有无 React 的局点与空间运行时，向纯根组件注入快照 store 与 action，并在创建或空间变更成功后刷新。通用 `dsh web` 组合及其 Workspace 投影保持不变。
 
-在标准 `ui-workspace` 行被禁用时，GSTAR 根插件声明两个标准 Workspace directory-flow 洞。`directory-picker-auto` 提供与 Web 相同的原生或浏览式占位者；其选中路径交给 `gstarSites.create`。目录选择器 Client 清单依赖运行时服务，而不是某个特定洞 owner；`slots.inject()` 将其生命周期绑定到声明这对洞的根插件。
+在标准 `ui-workspace` 行被禁用时，GSTAR 根插件声明两个标准 Workspace directory-flow 洞。`directory-picker-auto` 提供与 Web 相同的原生或浏览式占位者；其选中路径与必填局点名称交给 `gstarSites.create`，随后由 Host 侧 `gstarSpatial.locate` 自动定位。目录选择器 Client 清单依赖运行时服务，而不是某个特定洞 owner；`slots.inject()` 将其生命周期绑定到声明这对洞的根插件。
 
 ## Alternatives considered
 
@@ -42,9 +42,9 @@ CLI 测试固定 `gstar` 别名和应用参数边界，App Boot 测试固定随�
 
 局点 Service Definition 测试固定服务发布、销毁与 Remote 委托。Workspace Provider 测试通过真实 Loader/Include 组合运行，并验证成员过滤、注册表顺序投影、创建委托、持久化归类、幂等重连及领域销毁。
 
-GSTAR Client 组合测试固定两个生成 contribution 的挂载与逆序销毁。UI apply 与运行时测试固定精确 Remote 依赖、成功/错误信封处理、创建或空间变更后刷新、过期响应抑制、directory-flow 声明、标准 conversation/details slot 和占位者实时可用性。组件测试驱动选中 Host 目录的局点创建、局点选择、地球定位、AOI 选择、实体字段展示与溯源展示。
+GSTAR Client 组合测试固定两个生成 contribution 的挂载与逆序销毁。UI apply 与运行时测试固定精确 Remote 依赖、成功/错误信封处理、创建或空间变更后刷新、过期响应抑制、directory-flow 声明、标准 conversation/details slot 和占位者实时可用性。组件测试驱动带名称与 Host 目录的局点创建、Host 自动定位、局点选择、AOI 选择、实体字段展示与溯源展示。
 
-空间 Service Definition 测试固定 Remote 委托。其 storage Provider 测试通过真实 Loader/Include 组合运行，证明局点过滤、未提供字段保留、位置与 AOI 提交、普通 Workspace 拒绝、串行销毁和领域关闭。Cesium 资产测试固定路径穿越防护、MIME、不可变缓存、路由组合与方法拒绝。
+空间 Service Definition 测试固定 Remote 委托。其 storage Provider 测试通过真实 Loader/Include 组合运行，证明局点过滤、未提供字段保留、固定来源 Nominatim 查询与局点后缀规范化、位置与 AOI 提交、普通 Workspace 拒绝、串行销毁和领域关闭。Cesium 资产测试固定路径穿越防护、MIME、不可变缓存、路由组合与方法拒绝。
 
 包级 Model Experience 审计把 GSTAR Bundle、UI、局点/空间 Service Definition 及其 Provider、Cesium Host 路由和 Client Remote 组合归类为模型中性 contribution。
 

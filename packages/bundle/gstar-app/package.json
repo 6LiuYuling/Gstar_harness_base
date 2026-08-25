@@ -46,7 +46,8 @@
     "@deepseek-ai/dsh-gstar-site-workspace": "workspace:^",
     "@deepseek-ai/dsh-gstar-spatial": "workspace:^",
     "@deepseek-ai/dsh-gstar-spatial-storage": "workspace:^",
-    "@deepseek-ai/dsh-gstar-tool-spatial-query": "workspace:^"
+    "@deepseek-ai/dsh-gstar-tool-spatial-query": "workspace:^",
+    "@deepseek-ai/dsh-web-fetch-http": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-invariants": "workspace:^",

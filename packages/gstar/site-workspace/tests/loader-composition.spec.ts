@@ -106,7 +106,7 @@ describe('gstar-site-workspace through a real Loader composition', () => {
     await context.fiber.dispose()
     context = undefined
     expect(close).toHaveBeenCalledTimes(1)
-    await expect(service.create({ path: created.path }))
+    await expect(service.create({ path: created.path, title: created.title }))
       .rejects.toThrow('GSTAR site membership is disposing')
   })
 

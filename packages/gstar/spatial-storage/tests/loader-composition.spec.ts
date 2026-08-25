@@ -51,6 +51,12 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
         close,
       })),
     } as never)
+    const fetch = vi.fn()
+      .mockResolvedValueOnce({
+        url: 'https://nominatim.openstreetmap.org/search', statusCode: 200,
+        body: { kind: 'text', content: '[{"lat":"23.1291","lon":"113.2644"}]' }, truncated: false,
+      })
+    context.provide('web', { fetch } as never)
     context.baseUrl = pathToFileURL(root).href + '/'
     await context.plugin(Loader)
     context.loader.builtins.include = Include
@@ -101,6 +107,16 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
         aois: [aoi],
       })
     expect(put).toHaveBeenCalledTimes(2)
+
+    await expect(context.gstarSpatial.locate({ workspaceId: SITE_ID, query: '广州局点' }))
+      .resolves.toMatchObject({
+        workspaceId: SITE_ID,
+        location: { longitude: 113.2644, latitude: 23.1291 },
+        aois: [aoi],
+      })
+    expect(fetch).toHaveBeenCalledOnce()
+    expect(new URL(fetch.mock.calls[0]![0].url).searchParams.get('q')).toBe('广州')
+    expect(put).toHaveBeenCalledTimes(3)
 
     await expect(context.gstarSpatial.patch({ workspaceId: ORDINARY_ID, location: { longitude: 0, latitude: 0 } }))
       .rejects.toThrow('is not a GSTAR station')

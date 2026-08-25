@@ -25,6 +25,6 @@ export interface GstarSiteSnapshot {
 export interface GstarSiteCreateRequest {
   /** Existing directory path accepted by the active Workspace provider. */
   readonly path: string
-  /** Display title used only when the Workspace is first created. */
-  readonly title?: string
+  /** User-supplied station name used for display and automatic geocoding. */
+  readonly title: string
 }

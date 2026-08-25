@@ -15,14 +15,18 @@ describe('GstarSpatialRuntime', () => {
   it('loads the Host projection and refreshes it after a patch', async () => {
     const list = vi.fn().mockResolvedValue({ ok: true, value: [SPATIAL] })
     const patch = vi.fn().mockResolvedValue({ ok: true, value: SPATIAL })
-    const runtime = new GstarSpatialRuntime({ list, patch } as never)
+    const locate = vi.fn().mockResolvedValue({ ok: true, value: SPATIAL })
+    const runtime = new GstarSpatialRuntime({ list, patch, locate } as never)
 
     await runtime.load()
     expect(runtime.list.getSnapshot()).toEqual({ items: [SPATIAL], phase: 'ready' })
     const request = { workspaceId: SPATIAL.workspaceId, location: LOCATION }
     await expect(runtime.patch(request)).resolves.toBe(SPATIAL)
     expect(patch).toHaveBeenCalledWith(request)
-    expect(list).toHaveBeenCalledTimes(2)
+    const locateRequest = { workspaceId: SPATIAL.workspaceId, query: '广州局点' }
+    await expect(runtime.locate(locateRequest)).resolves.toBe(SPATIAL)
+    expect(locate).toHaveBeenCalledWith(locateRequest)
+    expect(list).toHaveBeenCalledTimes(3)
   })
 
   it('preserves successful items when a refresh fails and rejects a failed patch', async () => {
@@ -32,7 +36,10 @@ describe('GstarSpatialRuntime', () => {
     const patch = vi.fn().mockResolvedValue({
       ok: false, error: { code: 'INVALID_ARGUMENT', message: 'invalid coordinate' },
     })
-    const runtime = new GstarSpatialRuntime({ list, patch } as never)
+    const locate = vi.fn().mockResolvedValue({
+      ok: false, error: { code: 'NOT_FOUND', message: 'station name not found' },
+    })
+    const runtime = new GstarSpatialRuntime({ list, patch, locate } as never)
 
     await runtime.load()
     await runtime.load()
@@ -41,6 +48,8 @@ describe('GstarSpatialRuntime', () => {
     })
     await expect(runtime.patch({ workspaceId: SPATIAL.workspaceId, location: LOCATION }))
       .rejects.toThrow('gstarSpatial.patch failed: INVALID_ARGUMENT: invalid coordinate')
+    await expect(runtime.locate({ workspaceId: SPATIAL.workspaceId, query: '未知局点' }))
+      .rejects.toThrow('gstarSpatial.locate failed: NOT_FOUND: station name not found')
   })
 
   it('ignores a stale list response after a newer refresh', async () => {

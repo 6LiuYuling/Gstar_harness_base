@@ -5,7 +5,9 @@ import {
   createSnapshotStore, type ClientContext, type SnapshotStore,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-gstar-spatial/remote'
-import type { GstarSpatialPatchRequest, GstarSpatialSnapshot } from '@deepseek-ai/dsh-gstar-spatial/types'
+import type {
+  GstarSpatialLocateRequest, GstarSpatialPatchRequest, GstarSpatialSnapshot,
+} from '@deepseek-ai/dsh-gstar-spatial/types'
 
 /** Host-backed spatial-list state consumed by the GSTAR root component. */
 export interface GstarSpatialListState {
@@ -48,6 +50,16 @@ export class GstarSpatialRuntime {
     const result = await this.remote.patch(request)
     if (!result.ok) {
       throw new Error(`gstarSpatial.patch failed: ${result.error.code}: ${result.error.message}`)
+    }
+    await this.load()
+    return result.value
+  }
+
+  /** Resolve a station name on the Host, persist the marker, and refresh the projection. */
+  async locate(request: GstarSpatialLocateRequest): Promise<GstarSpatialSnapshot> {
+    const result = await this.remote.locate(request)
+    if (!result.ok) {
+      throw new Error(`gstarSpatial.locate failed: ${result.error.code}: ${result.error.message}`)
     }
     await this.load()
     return result.value

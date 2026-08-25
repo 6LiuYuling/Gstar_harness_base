@@ -10,7 +10,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { GstarSiteCreateRequest, GstarSiteSnapshot } from '@deepseek-ai/dsh-gstar-site/types'
 import type {
-  GstarAoiSnapshot, GstarCoordinate, GstarSpatialPatchRequest, GstarSpatialSnapshot,
+  GstarAoiSnapshot, GstarSpatialLocateRequest, GstarSpatialPatchRequest, GstarSpatialSnapshot,
 } from '@deepseek-ai/dsh-gstar-spatial/types'
 import { CesiumGlobe } from './CesiumGlobe.tsx'
 import type { GstarSiteListState } from './site-runtime.ts'
@@ -28,6 +28,8 @@ export interface GstarAppInjected {
   openSite(workspaceId: WorkspaceId): void
   /** Persist a station location or pipeline-published AOI replacement. */
   patchSpatial(request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot>
+  /** Resolve the user-supplied station name on the Host and persist its marker. */
+  locateSpatial(request: GstarSpatialLocateRequest): Promise<GstarSpatialSnapshot>
   /** Framework-bound Client hooks supplied by the registering plugin. */
   hooks: {
     /** Whether the composed DSH directory-picker currently occupies GSTAR's flow hole. */
@@ -106,14 +108,17 @@ function AoiInspector({ aoi, onClose }: { readonly aoi: GstarAoiSnapshot; readon
  * @returns the GSTAR application shell.
  */
 export function GstarApp({
-  actions, createSite, openSite, patchSpatial, renderSlot,
+  actions, createSite, locateSpatial, openSite, renderSlot,
   useDirectoryFlow, useSites, useSpatial, useStore,
 }: GstarAppProps) {
   const view = useStore(state => state)
   const siteState = useSites(state => state)
   const spatialState = useSpatial(state => state)
   const directoryFlowAvailable = useDirectoryFlow(occupied => occupied)
+  const [createOpen, setCreateOpen] = useState(false)
   const [flowOpen, setFlowOpen] = useState(false)
+  const [stationName, setStationName] = useState('')
+  const [stationPath, setStationPath] = useState<string>()
   const [submitting, setSubmitting] = useState(false)
   const [createError, setCreateError] = useState<string>()
   const [spatialError, setSpatialError] = useState<string>()
@@ -143,13 +148,36 @@ export function GstarApp({
     openSite(workspaceId)
   }
 
-  const connectDirectory = async (path: string) => {
+  const createStation = async () => {
+    const title = stationName.trim()
+    if (title.length === 0) {
+      setCreateError('请输入局点名称')
+      return
+    }
+    if (stationPath === undefined) {
+      setCreateError('请选择局点工作目录')
+      return
+    }
     setSubmitting(true)
     setCreateError(undefined)
+    setSpatialError(undefined)
     try {
-      const site = await createSite({ path })
+      const site = await createSite({ path: stationPath, title })
       actions.beginLocating(site.workspaceId)
       openSite(site.workspaceId)
+      try {
+        await locateSpatial({ workspaceId: site.workspaceId, query: title })
+        setCreateOpen(false)
+        setStationName('')
+        setStationPath(undefined)
+      } catch (error) {
+        setCreateOpen(false)
+        setStationName('')
+        setStationPath(undefined)
+        setSpatialError(`局点已创建，但自动定位失败：${error instanceof Error ? error.message : String(error)}`)
+      } finally {
+        actions.finishLocating()
+      }
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : String(error))
     } finally {
@@ -158,12 +186,15 @@ export function GstarApp({
     }
   }
 
-  const locateSite = (workspaceId: WorkspaceId, coordinate: GstarCoordinate) => {
+  const locateSite = (site: GstarSiteSnapshot) => {
     setSpatialError(undefined)
-    void patchSpatial({ workspaceId, location: coordinate }).then(
+    actions.beginLocating(site.workspaceId)
+    openSite(site.workspaceId)
+    void locateSpatial({ workspaceId: site.workspaceId, query: site.title }).then(
       () => { actions.finishLocating() },
       (reason: unknown) => {
         setSpatialError(reason instanceof Error ? reason.message : String(reason))
+        actions.finishLocating()
       },
     )
   }
@@ -171,7 +202,10 @@ export function GstarApp({
   const directoryFlowOwner: DirectoryFlowOwnerProps = {
     open: flowOpen,
     busy: submitting,
-    onPicked: path => { void connectDirectory(path) },
+    onPicked: (path) => {
+      setStationPath(path)
+      setFlowOpen(false)
+    },
     onCancel: () => { setFlowOpen(false) },
     onError: (message) => {
       setFlowOpen(false)
@@ -182,6 +216,7 @@ export function GstarApp({
   if (!directoryFlowAvailable) createActionLabel = '目录选择器加载中…'
   if (flowOpen) createActionLabel = '选择目录中…'
   if (submitting) createActionLabel = '创建中…'
+  if (createOpen && !flowOpen && !submitting) createActionLabel = '取消新增'
 
   return (
     <div className={css.app} data-left-collapsed={view.leftCollapsed ? '' : undefined}>
@@ -203,22 +238,50 @@ export function GstarApp({
             <div><span>STATIONS</span><h1>局点列表</h1></div>
             <button
               type="button"
-              aria-expanded={flowOpen}
+              aria-expanded={createOpen}
               disabled={submitting || flowOpen || !directoryFlowAvailable}
               onClick={() => {
                 setCreateError(undefined)
-                setFlowOpen(true)
+                setCreateOpen(open => !open)
               }}
             >
               {createActionLabel}
             </button>
           </div>
+          {createOpen ? (
+            <form
+              className={css.createForm}
+              onSubmit={(event) => {
+                event.preventDefault()
+                void createStation()
+              }}
+            >
+              <label>
+                <span>局点名称</span>
+                <input
+                  autoFocus
+                  value={stationName}
+                  placeholder="例如：北京市朝阳区"
+                  onChange={event => { setStationName(event.currentTarget.value) }}
+                />
+              </label>
+              <div className={css.directoryField}>
+                <span title={stationPath}>{stationPath ?? '尚未选择工作目录'}</span>
+                <button type="button" disabled={flowOpen || submitting} onClick={() => { setFlowOpen(true) }}>
+                  选择目录
+                </button>
+              </div>
+              <button type="submit" disabled={submitting || stationName.trim().length === 0 || stationPath === undefined}>
+                {submitting ? '正在创建并定位…' : '创建并自动定位'}
+              </button>
+            </form>
+          ) : null}
           {renderSlot('conversation.hero.workspace.directoryFlow', directoryFlowOwner)}
           {createError === undefined ? null : <p className={css.inlineError} role="alert">局点创建失败：{createError}</p>}
           {siteState.phase === 'loading' ? <p className={css.empty}>正在同步局点…</p> : null}
           {siteState.phase === 'error' ? <p className={css.empty} role="alert">局点同步失败：{siteState.error}</p> : null}
           {siteState.phase === 'ready' && siteState.items.length === 0 ? (
-            <p className={css.empty}>尚未创建局点。新增局点会使用 DSH 的标准目录选择器。</p>
+            <p className={css.empty}>尚未创建局点。输入名称并选择 DSH Workspace 目录后，系统会自动定位。</p>
           ) : null}
           <div className={css.siteList}>
             {siteState.items.map((site) => {
@@ -238,12 +301,10 @@ export function GstarApp({
                     <button
                       type="button"
                       className={css.locateButton}
-                      onClick={() => {
-                        actions.beginLocating(site.workspaceId)
-                        openSite(site.workspaceId)
-                      }}
+                      disabled={view.locatingSiteId === site.workspaceId}
+                      onClick={() => { locateSite(site) }}
                     >
-                      在地球上定位
+                      {view.locatingSiteId === site.workspaceId ? '正在自动定位…' : '重新自动定位'}
                     </button>
                   ) : null}
                 </article>
@@ -258,13 +319,11 @@ export function GstarApp({
             spatial={spatialState.items}
             {...(view.selectedSiteId === undefined ? {} : { selectedSiteId: view.selectedSiteId })}
             {...(view.selectedAoiId === undefined ? {} : { selectedAoiId: view.selectedAoiId })}
-            {...(view.locatingSiteId === undefined ? {} : { locatingSiteId: view.locatingSiteId })}
             onSelectSite={chooseSite}
             onSelectAoi={(workspaceId, aoiId) => {
               if (workspaceId !== view.selectedSiteId) chooseSite(workspaceId)
               actions.selectAoi(aoiId)
             }}
-            onLocate={locateSite}
           />
           <div className={css.mapTitle}>
             <span>CESIUM GLOBAL VIEW</span>
@@ -273,9 +332,8 @@ export function GstarApp({
           </div>
           {view.locatingSiteId === undefined ? null : (
             <div className={css.locatingNotice} role="status">
-              <span>定位模式</span>
-              <strong>请在地球上点击局点所在位置</strong>
-              <button type="button" onClick={() => { actions.finishLocating() }}>取消</button>
+              <span>自动定位</span>
+              <strong>正在根据局点名称解析地理位置…</strong>
             </div>
           )}
           {spatialState.phase === 'error' ? (
@@ -289,6 +347,7 @@ export function GstarApp({
             <span><i data-kind="site" />局点</span>
             <span><i data-kind="aoi" />AOI</span>
             <span>点击局点缩放 · 点击 AOI 查看实体与溯源</span>
+            <span>定位数据 © OpenStreetMap contributors / Nominatim</span>
           </div>
         </section>
 

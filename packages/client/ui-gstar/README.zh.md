@@ -6,7 +6,7 @@ GSTAR 浏览器根 Shell。它占用内置 `root` slot，渲染三栏局点工�
 
 注册它的 Client 插件持有由 `gstarSites` 与 `gstarSpatial` Remote namespace 支撑的无 React 局点和空间运行时。Cesium 只投影 Host 快照：持久化局点标记、AOI Polygon/MultiPolygon 几何、实体字段与数据溯源。选择局点会为该局点 Workspace 启动 DSH Session，并让现有 `ui-conversation` 插件渲染到声明的 `conversation` slot。
 
-标准 `ui-workspace` 行保持缺席，但根条目声明与 `dsh web` 相同的 directory-flow 洞。因此 `directory-picker-auto` 会原样提供原生选择器或应用内「选择工作区目录」对话框。选中的 Host 路径交给 `gstarSites.create`；新分类局点随后进入地球定位模式，不会伪造坐标。
+标准 `ui-workspace` 行保持缺席，但根条目声明与 `dsh web` 相同的 directory-flow 洞。因此 `directory-picker-auto` 会原样提供原生选择器或应用内「选择工作区目录」对话框。用户输入必填局点名称并选择 Host 路径；`gstarSites.create` 完成后，`gstarSpatial.locate` 在 Host 侧解析并持久化标记，Cesium 自动飞到已提交坐标。
 
 ## 模型体验
 
@@ -19,5 +19,5 @@ GSTAR 浏览器根 Shell。它占用内置 `root` slot，渲染三栏局点工�
 ## 已知限制与暂缓事项
 
 - 只有 Host 流水线通过 `gstarSpatial.patch` 发布 AOI 后才会显示；浏览器不会生成示例 AOI 或溯源。
-- 首个地图 Provider 使用联网 OpenStreetMap 瓦片与椭球地形；部署方仍需制定自己的影像与离线策略。
+- 首个地图 Provider 使用暗色化 Esri World Imagery 卫星瓦片与椭球地形；部署方仍需制定自己的影像与离线策略。
 - 右侧窄栏复用了完整 DSH 对话树与只读 `gstar_station_data` 工具；数据变更和流水线控制工具仍待实现。

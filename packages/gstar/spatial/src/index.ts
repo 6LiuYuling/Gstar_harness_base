@@ -5,13 +5,15 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import type { GstarSpatialPatchRequest, GstarSpatialSnapshot } from './types.ts'
+import type {
+  GstarSpatialLocateRequest, GstarSpatialPatchRequest, GstarSpatialSnapshot,
+} from './types.ts'
 
 export type {
   GstarAoiGeometry, GstarAoiSnapshot, GstarCoordinate, GstarEntityFieldValue,
   GstarEntitySnapshot, GstarLinearRing, GstarMultiPolygonGeometry,
-  GstarPolygonGeometry, GstarProvenanceSnapshot, GstarSpatialPatchRequest,
-  GstarSpatialSnapshot,
+  GstarPolygonGeometry, GstarProvenanceSnapshot, GstarSpatialLocateRequest,
+  GstarSpatialPatchRequest, GstarSpatialSnapshot,
 } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -43,6 +45,13 @@ export abstract class GstarSpatialService extends TypertRemoteService {
    */
   abstract patch(request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot>
 
+  /**
+   * Resolve a user-supplied station name and persist its marker location.
+   * @param request - Station identity and geocoding query.
+   * @returns the committed immutable spatial projection.
+   */
+  abstract locate(request: GstarSpatialLocateRequest): Promise<GstarSpatialSnapshot>
+
   /** Remote adapter for {@link list}. */
   @Remote('list')
   remoteExportList(): Promise<readonly GstarSpatialSnapshot[]> {
@@ -53,6 +62,12 @@ export abstract class GstarSpatialService extends TypertRemoteService {
   @Remote('patch')
   remoteExportPatch(request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot> {
     return this.patch(request)
+  }
+
+  /** Remote adapter for {@link locate}. */
+  @Remote('locate')
+  remoteExportLocate(request: GstarSpatialLocateRequest): Promise<GstarSpatialSnapshot> {
+    return this.locate(request)
   }
 }
 

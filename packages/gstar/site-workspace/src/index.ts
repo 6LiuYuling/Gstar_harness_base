@@ -65,7 +65,9 @@ export class WorkspaceGstarSiteService extends GstarSiteService {
 
   override create(request: GstarSiteCreateRequest): Promise<GstarSiteSnapshot> {
     return this.enqueueOperation(async () => {
-      const workspace = await this.ctx.workspaceRegistry.create(request.path, request.title)
+      const title = request.title.trim()
+      if (title.length === 0) throw new Error('gstarSites.create requires a station title')
+      const workspace = await this.ctx.workspaceRegistry.create(request.path, title)
       const sites = this.requireSites()
       if (sites.get(workspace.id) === undefined) {
         await sites.put(workspace.id, { registeredAt: new Date().toISOString() })

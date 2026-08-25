@@ -8,6 +8,7 @@
     { "path": "../site" },
     { "path": "../spatial" },
     { "path": "../../storage/storage-domain" },
+    { "path": "../../web/web" },
     { "path": "../../workspace/workspace" }
   ]
 }
