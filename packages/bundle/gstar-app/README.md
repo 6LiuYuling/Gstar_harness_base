@@ -23,5 +23,5 @@ None.
 ## Known Limitations and Deferred Work
 
 - AOI records remain empty until a real acquisition/processing pipeline publishes them through the spatial Service.
-- Base-map imagery uses darkened Esri World Imagery and automatic location uses public Nominatim with Photon failover; both require network access.
+- Base-map imagery uses lightly darkened Esri World Imagery that retains station-scale detail, and automatic location uses public Nominatim with Photon failover; both require network access.
 - Source-configuration, processing, pipeline execution, and mutating Agent tools remain subsequent GSTAR capabilities; the shipped `gstar_station_data` tool is read-only.

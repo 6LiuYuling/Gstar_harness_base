@@ -19,5 +19,5 @@ GSTAR 浏览器根 Shell。它占用内置 `root` slot，渲染三栏局点工�
 ## 已知限制与暂缓事项
 
 - 只有 Host 流水线通过 `gstarSpatial.patch` 发布 AOI 后才会显示；浏览器不会生成示例 AOI 或溯源。
-- 首个地图 Provider 使用暗色化 Esri World Imagery 卫星瓦片与椭球地形；部署方仍需制定自己的影像与离线策略。
+- 首个地图 Provider 使用轻度暗色化的 Esri World Imagery 卫星瓦片，在局点尺度保留道路与建筑细节，并采用椭球地形；部署方仍需制定自己的影像与离线策略。
 - 右侧窄栏复用了完整 DSH 对话树与只读 `gstar_station_data` 工具；数据变更和流水线控制工具仍待实现。

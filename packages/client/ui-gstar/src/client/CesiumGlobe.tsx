@@ -104,10 +104,12 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
         url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         credit: new Cesium.Credit('Esri, Maxar, Earthstar Geographics, and the GIS User Community'),
       }))
-      satelliteLayer.brightness = 0.46
-      satelliteLayer.contrast = 1.28
-      satelliteLayer.saturation = 0.56
-      satelliteLayer.gamma = 0.9
+      // Preserve the dark product character without hiding roads, buildings,
+      // and terrain texture after the camera flies down to station scale.
+      satelliteLayer.brightness = 0.84
+      satelliteLayer.contrast = 1.12
+      satelliteLayer.saturation = 0.82
+      satelliteLayer.gamma = 1.05
       const createdViewer = new Cesium.Viewer(container, {
         animation: false,
         baseLayerPicker: false,

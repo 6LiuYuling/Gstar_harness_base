@@ -19,5 +19,5 @@ None.
 ## Known Limitations and Deferred Work
 
 - AOIs appear only after a Host pipeline publishes them through `gstarSpatial.patch`; the browser does not generate sample AOIs or provenance.
-- The first map Provider uses darkened Esri World Imagery tiles and an ellipsoid terrain Provider; deployments still need their own imagery policy and offline strategy.
+- The first map Provider uses lightly darkened Esri World Imagery tiles that retain station-scale road and building detail, plus an ellipsoid terrain Provider; deployments still need their own imagery policy and offline strategy.
 - The narrow conversation column reuses the complete DSH conversation tree and the read-only `gstar_station_data` tool; data mutation and pipeline-control tools are deferred.

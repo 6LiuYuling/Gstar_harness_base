@@ -18,7 +18,7 @@ GSTAR Shell 仅在一个持久化 DSH Workspace 被明确归类为局点后，�
 
 GSTAR 根插件是三栏 Client 插件：左侧是已分类局点列表，中间是 Cesium 地球，右侧是标准 DSH 对话。它按标准约定声明 `conversation`、`details` 和 `shell.overlay`，并通过自身根查看状态 store 提供 `ctx.layout` action face。这样无需挂载标准 `ui-layout` 根插件，即可保留 DSH Conversation、工具详情、Session 日志与 Agent 行为。选择局点会调用标准 Workspace Client 服务，为该 Workspace 启动 Session。
 
-Cesium 运行时文件不由第二套前端托管。`dsh-gstar-cesium-assets` 贡献一条 DSH Web Host 前缀路由，提供已安装的 Workers、ThirdParty、Assets 和 Widgets 目录；`ui-gstar` 打包匹配的 API，并把模块基址指向该路由。Cesium 只在暗色卫星图层上投影 Host 快照。未提交坐标的局点明确保持未定位。创建时必须输入局点名称并使用标准目录流程；`gstarSpatial.locate` 通过 Host `ctx.web` Provider 固定访问 Nominatim 与 Photon 解析名称、持久化坐标，并让 Cesium 自动飞到已提交标记，不再要求浏览器端点击地图。运行时支持动态代理配置时，CLI 会在 Profile 启动前将继承的 HTTP(S) 代理变量应用到 Node 全局 dispatcher。
+Cesium 运行时文件不由第二套前端托管。`dsh-gstar-cesium-assets` 贡献一条 DSH Web Host 前缀路由，提供已安装的 Workers、ThirdParty、Assets 和 Widgets 目录；`ui-gstar` 打包匹配的 API，并把模块基址指向该路由。Cesium 只在轻度暗色化、保留局点尺度道路、建筑与地表细节的卫星图层上投影 Host 快照。未提交坐标的局点明确保持未定位。创建时必须输入局点名称并使用标准目录流程；`gstarSpatial.locate` 通过 Host `ctx.web` Provider 固定访问 Nominatim 与 Photon 解析名称、持久化坐标，并让 Cesium 自动飞到已提交标记，不再要求浏览器端点击地图。运行时支持动态代理配置时，CLI 会在 Profile 启动前将继承的 HTTP(S) 代理变量应用到 Node 全局 dispatcher。
 
 右侧对话通过 `gstar_station_data` 读取同一 Host 空间快照；这是只由 GSTAR Bundle 加载的只读 DSH Tool Consumer。它从不可变的调用 Session cwd 推导局点权限，不接受模型提供的 Workspace id，先返回摘要再返回实体数组，并限制 AOI 详情的实体结果。普通 Workspace 或没有局点 cwd 的 Session 会被拒绝。
 
