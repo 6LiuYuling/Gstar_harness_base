@@ -4,9 +4,9 @@ English | [中文](README.zh.md)
 
 `storage-domain` Provider for `ctx.gstarSpatial`. It opens the `gstar_spatial` domain, stores one record per station `WorkspaceId`, and filters every read and write through `ctx.gstarSites`. An ordinary `dsh web` Workspace therefore cannot acquire or expose GSTAR spatial records unless it has first been durably classified as a station.
 
-Writes are serialized through a Provider-owned operation chain and complete before the domain closes. Omitted location or AOI fields retain the durable value; an empty AOI array is an explicit publication that clears the current AOI projection.
+Writes are serialized through a Provider-owned operation chain and complete before the domain closes. Omitted location, boundary, or AOI fields retain the durable value; `boundary: null` clears the current station boundary, and an empty AOI array clears the current AOI projection. The Provider participates in `gstarSites.delete`: it removes the station record before membership deletion, blocks racing patches, and supplies a durable rollback until membership removal commits.
 
-`locate()` uses the injected DSH `ctx.web` seam to try Nominatim and then Photon, removes a trailing Chinese station suffix before falling back to the exact title, validates the returned WGS84 coordinate, and persists it through the same spatial write path. Transport, HTTP, and malformed-payload failures fall through to the next Host provider and retain their cause chain for Remote diagnostics. The browser never performs geocoding requests directly.
+`locate()` uses the injected DSH `ctx.web` seam to try Nominatim and then Photon, removes a trailing Chinese station suffix before falling back to the exact title, validates the returned WGS84 coordinate, and persists it through the same spatial write path. Nominatim requests simplified GeoJSON geometry; a valid Polygon/MultiPolygon becomes the station boundary, with Nominatim's bounding box as a rectangle fallback. Photon remains a marker-only availability fallback. Transport, HTTP, and malformed-payload failures fall through to the next Host provider and retain their cause chain for Remote diagnostics. The browser never performs geocoding requests directly.
 
 ## Model Experience
 

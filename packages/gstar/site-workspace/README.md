@@ -6,6 +6,8 @@ DSH Workspace-backed provider for `ctx.gstarSites`. A storage-domain sidecar rec
 
 The membership sidecar stores no copied Workspace metadata. DSH Workspace remains the authoritative station identity and metadata source; station-owned GSTAR domains refer to it through `workspaceId`. Connecting an existing ordinary Workspace explicitly classifies that same identity as a GSTAR station without changing the generic Workspace record.
 
+`delete()` prepares every registered station-owned cleanup, removes only the membership row, and compensates prepared cleanup if that membership write fails. The underlying Workspace stays registered and its directory and Session logs are untouched, so it disappears from `dsh gstar` but remains available as an ordinary Workspace in `dsh web`.
+
 ## Model Experience
 
 None, as the Provider contributes no model-visible input.

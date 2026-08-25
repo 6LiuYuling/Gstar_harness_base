@@ -65,6 +65,7 @@ export const gstarAoiRecord = z.object({
 /** Complete durable spatial record for one station. */
 export const gstarSpatialRecord = z.object({
   location: gstarCoordinateRecord.optional(),
+  boundary: gstarAoiGeometryRecord.optional(),
   aois: z.array(gstarAoiRecord),
   updatedAt: z.iso.datetime(),
 })

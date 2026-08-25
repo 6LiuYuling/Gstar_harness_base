@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/gstar/spatial/README.md
-README.md: 78b589e6f5820c88673489321f1edabebf397086
-README.zh.md: 7bb5fbc488eecc40ddac9205ec02a845bbd8b79a
+README.md: f7ee79729029ce4da02bdf857a589733b094df9b
+README.zh.md: e581742d973b6b2123a739c83942be119604ed3e

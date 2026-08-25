@@ -28,3 +28,9 @@ export interface GstarSiteCreateRequest {
   /** User-supplied station name used for display and automatic geocoding. */
   readonly title: string
 }
+
+/** Remove GSTAR classification and station-owned assets from one Workspace. */
+export interface GstarSiteDeleteRequest {
+  /** Workspace identity currently classified as a GSTAR station. */
+  readonly workspaceId: WorkspaceId
+}

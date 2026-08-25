@@ -8,7 +8,9 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {
   DirectoryFlowOwnerProps, DirectoryFlowSlotName,
 } from '@deepseek-ai/dsh-client-ui-workspace/client'
-import type { GstarSiteCreateRequest, GstarSiteSnapshot } from '@deepseek-ai/dsh-gstar-site/types'
+import type {
+  GstarSiteCreateRequest, GstarSiteDeleteRequest, GstarSiteSnapshot,
+} from '@deepseek-ai/dsh-gstar-site/types'
 import type {
   GstarAoiSnapshot, GstarSpatialLocateRequest, GstarSpatialPatchRequest, GstarSpatialSnapshot,
 } from '@deepseek-ai/dsh-gstar-spatial/types'
@@ -24,6 +26,8 @@ type GstarRootChildSlot = DirectoryFlowSlotName | 'conversation' | 'details' | '
 export interface GstarAppInjected {
   /** Create or resolve a station through the Host `gstarSites` Remote. */
   createSite(request: GstarSiteCreateRequest): Promise<GstarSiteSnapshot>
+  /** Remove GSTAR classification and station-owned assets while preserving the Workspace directory. */
+  deleteSite(request: GstarSiteDeleteRequest): Promise<GstarSiteSnapshot>
   /** Open the station's reusable DSH conversation session. */
   openSite(workspaceId: WorkspaceId): void
   /** Persist a station location or pipeline-published AOI replacement. */
@@ -108,7 +112,7 @@ function AoiInspector({ aoi, onClose }: { readonly aoi: GstarAoiSnapshot; readon
  * @returns the GSTAR application shell.
  */
 export function GstarApp({
-  actions, createSite, locateSpatial, openSite, renderSlot,
+  actions, createSite, deleteSite, locateSpatial, openSite, renderSlot,
   useDirectoryFlow, useSites, useSpatial, useStore,
 }: GstarAppProps) {
   const view = useStore(state => state)
@@ -122,6 +126,9 @@ export function GstarApp({
   const [submitting, setSubmitting] = useState(false)
   const [createError, setCreateError] = useState<string>()
   const [spatialError, setSpatialError] = useState<string>()
+  const [deleteTarget, setDeleteTarget] = useState<GstarSiteSnapshot>()
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string>()
 
   useEffect(() => {
     if (flowOpen && !directoryFlowAvailable) setFlowOpen(false)
@@ -131,7 +138,8 @@ export function GstarApp({
     if (view.selectedSiteId !== undefined
       && !siteState.items.some(site => site.workspaceId === view.selectedSiteId)) {
       const first = siteState.items[0]
-      if (first !== undefined) actions.selectSite(first.workspaceId)
+      if (first === undefined) actions.clearSelection()
+      else actions.selectSite(first.workspaceId)
     }
   }, [actions, siteState.items, view.selectedSiteId])
 
@@ -197,6 +205,21 @@ export function GstarApp({
         actions.finishLocating()
       },
     )
+  }
+
+  const confirmDeleteSite = async () => {
+    if (deleteTarget === undefined) return
+    setDeleting(true)
+    setDeleteError(undefined)
+    try {
+      await deleteSite({ workspaceId: deleteTarget.workspaceId })
+      if (view.selectedSiteId === deleteTarget.workspaceId) actions.clearSelection()
+      setDeleteTarget(undefined)
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const directoryFlowOwner: DirectoryFlowOwnerProps = {
@@ -297,16 +320,30 @@ export function GstarApp({
                     </span>
                     <span className={css.siteCount}>{stationSpatial?.aois.length ?? 0} AOI</span>
                   </button>
-                  {stationSpatial?.location === undefined ? (
+                  <div className={css.siteActions}>
+                    {stationSpatial?.location === undefined || stationSpatial.boundary === undefined ? (
+                      <button
+                        type="button"
+                        className={css.locateButton}
+                        disabled={view.locatingSiteId === site.workspaceId}
+                        onClick={() => { locateSite(site) }}
+                      >
+                        {view.locatingSiteId === site.workspaceId
+                          ? '正在自动定位…'
+                          : stationSpatial?.location === undefined ? '重新自动定位' : '获取局点范围'}
+                      </button>
+                    ) : <span />}
                     <button
                       type="button"
-                      className={css.locateButton}
-                      disabled={view.locatingSiteId === site.workspaceId}
-                      onClick={() => { locateSite(site) }}
+                      className={css.deleteButton}
+                      onClick={() => {
+                        setDeleteError(undefined)
+                        setDeleteTarget(site)
+                      }}
                     >
-                      {view.locatingSiteId === site.workspaceId ? '正在自动定位…' : '重新自动定位'}
+                      删除
                     </button>
-                  ) : null}
+                  </div>
                 </article>
               )
             })}
@@ -317,6 +354,7 @@ export function GstarApp({
           <CesiumGlobe
             sites={siteState.items}
             spatial={spatialState.items}
+            focusRevision={view.focusRevision}
             {...(view.selectedSiteId === undefined ? {} : { selectedSiteId: view.selectedSiteId })}
             {...(view.selectedAoiId === undefined ? {} : { selectedAoiId: view.selectedAoiId })}
             onSelectSite={chooseSite}
@@ -328,7 +366,10 @@ export function GstarApp({
           <div className={css.mapTitle}>
             <span>CESIUM GLOBAL VIEW</span>
             <strong>{selectedSite?.title ?? '全球局点总览'}</strong>
-            <small>{selectedSpatial?.aois.length ?? 0} 个已发布 AOI</small>
+            <small>
+              {selectedSpatial?.aois.length ?? 0} 个已发布 AOI ·
+              {selectedSpatial?.boundary === undefined ? ' 局点范围待获取' : ' 局点范围已标注'}
+            </small>
           </div>
           {view.locatingSiteId === undefined ? null : (
             <div className={css.locatingNotice} role="status">
@@ -367,6 +408,34 @@ export function GstarApp({
           </div>
         </aside>
       </main>
+      {deleteTarget === undefined ? null : (
+        <div className={css.deleteBackdrop} role="presentation">
+          <section
+            className={css.deleteDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="gstar-delete-title"
+          >
+            <span>DELETE STATION</span>
+            <h2 id="gstar-delete-title">删除局点“{deleteTarget.title}”？</h2>
+            <p>将移除 GSTAR 局点身份、位置、边界、AOI、实体与溯源数据。</p>
+            <p>原工作目录和 DSH 会话日志不会删除，仍可在 <code>dsh web</code> 中作为普通工作区使用。</p>
+            {deleteError === undefined ? null : <p className={css.deleteError} role="alert">删除失败：{deleteError}</p>}
+            <div>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => { setDeleteTarget(undefined) }}
+              >
+                取消
+              </button>
+              <button type="button" disabled={deleting} onClick={() => { void confirmDeleteSite() }}>
+                {deleting ? '正在删除…' : '确认删除局点'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <div className={css.shellOverlay}>{renderSlot('shell.overlay', {})}</div>
     </div>
   )

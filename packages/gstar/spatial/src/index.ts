@@ -39,14 +39,14 @@ export abstract class GstarSpatialService extends TypertRemoteService {
   abstract list(): Promise<readonly GstarSpatialSnapshot[]>
 
   /**
-   * Patch location or AOIs and retain every omitted field.
+   * Patch location, station boundary, or AOIs and retain every omitted field.
    * @param request - Spatial fields to commit for one station.
    * @returns the committed immutable projection.
    */
   abstract patch(request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot>
 
   /**
-   * Resolve a user-supplied station name and persist its marker location.
+   * Resolve a user-supplied station name and persist its marker and available boundary.
    * @param request - Station identity and geocoding query.
    * @returns the committed immutable spatial projection.
    */

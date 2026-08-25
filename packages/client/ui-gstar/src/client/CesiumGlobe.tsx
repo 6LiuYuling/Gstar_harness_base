@@ -31,6 +31,8 @@ export interface CesiumGlobeProps {
   readonly spatial: readonly GstarSpatialSnapshot[]
   readonly selectedSiteId?: WorkspaceId
   readonly selectedAoiId?: string
+  /** Monotonic selection request, allowing a repeated click to refit the camera. */
+  readonly focusRevision: number
   readonly onSelectSite: (workspaceId: WorkspaceId) => void
   readonly onSelectAoi: (workspaceId: WorkspaceId, aoiId: string) => void
 }
@@ -172,7 +174,7 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
       canvasColor(Cesium, root.parentElement ?? root, '--gstar-map-aoi-3', Cesium.Color.CYAN),
     ] as const
     const spatialById = new Map(props.spatial.map(item => [item.workspaceId, item]))
-    const focusEntities: Entity[] = []
+    let selectedMarker: Entity | undefined
 
     props.sites.forEach((site, index) => {
       const location = spatialById.get(site.workspaceId)?.location
@@ -199,12 +201,44 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
         },
       })
       picks.set(id, { kind: 'site', workspaceId: site.workspaceId })
-      if (props.selectedSiteId === site.workspaceId) focusEntities.push(entity)
+      if (props.selectedSiteId === site.workspaceId) selectedMarker = entity
     })
 
     const selectedSpatial = props.selectedSiteId === undefined
       ? undefined
       : spatialById.get(props.selectedSiteId)
+    const boundaryEntities: Entity[] = []
+    if (selectedSpatial?.boundary !== undefined) {
+      const polygons = selectedSpatial.boundary.type === 'Polygon'
+        ? [selectedSpatial.boundary.coordinates]
+        : selectedSpatial.boundary.coordinates
+      polygons.forEach((rings, partIndex) => {
+        const fillId = `gstar-site-boundary-fill-${String(partIndex)}`
+        const fill = viewer.entities.add({
+          id: fillId,
+          polygon: {
+            hierarchy: hierarchy(Cesium, rings),
+            material: siteColor.withAlpha(0.08),
+          },
+        })
+        picks.set(fillId, { kind: 'site', workspaceId: selectedSpatial.workspaceId })
+        boundaryEntities.push(fill)
+        rings.forEach((ring, ringIndex) => {
+          const lineId = `gstar-site-boundary-line-${String(partIndex)}-${String(ringIndex)}`
+          viewer.entities.add({
+            id: lineId,
+            polyline: {
+              positions: ringPositions(Cesium, ring),
+              width: 3,
+              material: siteColor.withAlpha(0.98),
+              arcType: Cesium.ArcType.GEODESIC,
+            },
+          })
+          picks.set(lineId, { kind: 'site', workspaceId: selectedSpatial.workspaceId })
+        })
+      })
+    }
+    const selectedAoiEntities: Entity[] = []
     selectedSpatial?.aois.forEach((aoi, aoiIndex) => {
       const polygons = aoi.geometry.type === 'Polygon'
         ? [aoi.geometry.coordinates]
@@ -222,17 +256,24 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
           },
         })
         picks.set(id, { kind: 'aoi', workspaceId: selectedSpatial.workspaceId, aoiId: aoi.id })
-        focusEntities.push(entity)
+        if (props.selectedAoiId === aoi.id) selectedAoiEntities.push(entity)
       })
     })
     viewer.scene.requestRender()
+    const focusEntities = selectedAoiEntities.length > 0
+      ? selectedAoiEntities
+      : boundaryEntities.length > 0 ? boundaryEntities : selectedMarker === undefined ? [] : [selectedMarker]
     if (focusEntities.length > 0) {
       void viewer.flyTo(focusEntities, {
         duration: 1.2,
-        offset: new Cesium.HeadingPitchRange(0, -0.65, selectedSpatial?.aois.length === 0 ? 450_000 : 0),
+        offset: new Cesium.HeadingPitchRange(
+          0,
+          -0.65,
+          boundaryEntities.length === 0 && selectedAoiEntities.length === 0 ? 450_000 : 0,
+        ),
       })
     }
-  }, [props.sites, props.spatial, props.selectedSiteId, props.selectedAoiId, runtime])
+  }, [props.sites, props.spatial, props.selectedSiteId, props.selectedAoiId, props.focusRevision, runtime])
 
   return (
     <div className={css.root}>

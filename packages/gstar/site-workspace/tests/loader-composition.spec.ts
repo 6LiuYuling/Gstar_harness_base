@@ -51,6 +51,7 @@ describe('gstar-site-workspace through a real Loader composition', () => {
     const put = vi.fn(async (id: Workspace['id'], value: { registeredAt: string }) => {
       memberships.set(id, value)
     })
+    const remove = vi.fn(async (id: Workspace['id']) => { memberships.delete(id) })
     const close = vi.fn(async () => {})
 
     root = await mkdtemp(join(tmpdir(), 'dsh-gstar-site-workspace-loader-'))
@@ -61,7 +62,7 @@ describe('gstar-site-workspace through a real Loader composition', () => {
     context.provide('workspaceRegistry', { list: () => workspaces, create } as never)
     context.provide('storageDomain', {
       open: vi.fn(async () => ({
-        table: () => ({ get: (id: Workspace['id']) => memberships.get(id), put }),
+        table: () => ({ get: (id: Workspace['id']) => memberships.get(id), put, delete: remove }),
         close,
       })),
     } as never)
@@ -102,11 +103,26 @@ describe('gstar-site-workspace through a real Loader composition', () => {
     await context.gstarSites.create({ path: created.path, title: created.title })
     expect(put).toHaveBeenCalledTimes(1)
 
+    const cleanup = vi.fn(async () => ({ commit() {}, async rollback() {} }))
+    context.gstarSites.registerDeletionParticipant(cleanup)
+    await expect(context.gstarSites.delete({ workspaceId: created.id })).resolves.toMatchObject({
+      workspaceId: created.id,
+      path: created.path,
+    })
+    expect(cleanup).toHaveBeenCalledWith(created.id)
+    expect(remove).toHaveBeenCalledWith(created.id)
+    expect(workspaces).toContain(created)
+    expect((await context.gstarSites.list()).some(site => site.workspaceId === created.id)).toBe(false)
+    await expect(context.gstarSites.delete({ workspaceId: ordinary.id }))
+      .rejects.toThrow('is not a GSTAR station')
+
     const service = context.gstarSites
     await context.fiber.dispose()
     context = undefined
     expect(close).toHaveBeenCalledTimes(1)
     await expect(service.create({ path: created.path, title: created.title }))
+      .rejects.toThrow('GSTAR site membership is disposing')
+    await expect(service.delete({ workspaceId: first.id }))
       .rejects.toThrow('GSTAR site membership is disposing')
   })
 

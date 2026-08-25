@@ -6,10 +6,10 @@
 import { Service, type Context } from '@deepseek-ai/cordis'
 import GstarSpatialService from '@deepseek-ai/dsh-gstar-spatial'
 import type {
-  GstarAoiSnapshot, GstarCoordinate, GstarSpatialLocateRequest,
+  GstarAoiGeometry, GstarAoiSnapshot, GstarCoordinate, GstarLinearRing, GstarSpatialLocateRequest,
   GstarSpatialPatchRequest, GstarSpatialSnapshot,
 } from '@deepseek-ai/dsh-gstar-spatial/types'
-import type {} from '@deepseek-ai/dsh-gstar-site'
+import type { GstarSiteDeletionPreparation } from '@deepseek-ai/dsh-gstar-site'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type {} from '@deepseek-ai/dsh-web'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
@@ -30,6 +30,8 @@ const PHOTON_SEARCH_ENDPOINT = 'https://photon.komoot.io/api/'
 interface NominatimResult {
   readonly lat?: unknown
   readonly lon?: unknown
+  readonly boundingbox?: unknown
+  readonly geojson?: unknown
 }
 
 interface PhotonResponse {
@@ -48,7 +50,12 @@ interface PhotonPoint {
 interface Geocoder {
   readonly name: string
   url(query: string): URL
-  decode(content: string): GstarCoordinate | undefined
+  decode(content: string): GeocoderResult | undefined
+}
+
+interface GeocoderResult {
+  readonly location: GstarCoordinate
+  readonly boundary?: GstarAoiGeometry
 }
 
 /** Candidate queries, removing a UI station suffix before falling back to the exact title. */
@@ -82,19 +89,89 @@ function coordinate(longitude: unknown, latitude: unknown): GstarCoordinate | un
     : undefined
 }
 
-/** Decode the first valid WGS84 point returned by Nominatim. */
-function decodeNominatim(content: string): GstarCoordinate | undefined {
+/** Decode and validate one closed GeoJSON linear ring. */
+function linearRing(value: unknown): GstarLinearRing | undefined {
+  if (!Array.isArray(value) || value.length < 4) return undefined
+  const positions: GstarCoordinate[] = []
+  for (const candidate of value) {
+    if (!Array.isArray(candidate)) return undefined
+    const result = coordinate(candidate[0], candidate[1])
+    if (result === undefined) return undefined
+    positions.push(result)
+  }
+  const first = positions[0]
+  const last = positions.at(-1)
+  if (first === undefined || last === undefined
+    || first.longitude !== last.longitude || first.latitude !== last.latitude) return undefined
+  return positions
+}
+
+/** Decode one Polygon coordinate array. */
+function polygonRings(value: unknown): readonly GstarLinearRing[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined
+  const rings: GstarLinearRing[] = []
+  for (const candidate of value) {
+    const ring = linearRing(candidate)
+    if (ring === undefined) return undefined
+    rings.push(ring)
+  }
+  return rings
+}
+
+/** Decode GeoJSON Polygon or MultiPolygon into the browser-safe GSTAR geometry. */
+function geometry(value: unknown): GstarAoiGeometry | undefined {
+  if (value === null || typeof value !== 'object') return undefined
+  const input = value as { readonly type?: unknown; readonly coordinates?: unknown }
+  if (input.type === 'Polygon') {
+    const coordinates = polygonRings(input.coordinates)
+    return coordinates === undefined ? undefined : { type: 'Polygon', coordinates }
+  }
+  if (input.type === 'MultiPolygon' && Array.isArray(input.coordinates)) {
+    const polygons: (readonly GstarLinearRing[])[] = []
+    for (const polygon of input.coordinates) {
+      const rings = polygonRings(polygon)
+      if (rings === undefined) return undefined
+      polygons.push(rings)
+    }
+    return polygons.length === 0 ? undefined : { type: 'MultiPolygon', coordinates: polygons }
+  }
+  return undefined
+}
+
+/** Convert Nominatim's south/north/west/east bounds into a closed rectangle. */
+function boundingBoxGeometry(value: unknown): GstarAoiGeometry | undefined {
+  if (!Array.isArray(value) || value.length !== 4) return undefined
+  const southWest = coordinate(value[2], value[0])
+  const northEast = coordinate(value[3], value[1])
+  if (southWest === undefined || northEast === undefined
+    || southWest.longitude >= northEast.longitude || southWest.latitude >= northEast.latitude) return undefined
+  return {
+    type: 'Polygon',
+    coordinates: [[
+      southWest,
+      { longitude: northEast.longitude, latitude: southWest.latitude },
+      northEast,
+      { longitude: southWest.longitude, latitude: northEast.latitude },
+      southWest,
+    ]],
+  }
+}
+
+/** Decode the first valid WGS84 point and available place boundary returned by Nominatim. */
+function decodeNominatim(content: string): GeocoderResult | undefined {
   const value = decodeJson(content)
   if (!Array.isArray(value)) throw new Error('GSTAR geocoder returned a non-array payload')
   for (const candidate of value as NominatimResult[]) {
-    const result = coordinate(candidate.lon, candidate.lat)
-    if (result !== undefined) return result
+    const location = coordinate(candidate.lon, candidate.lat)
+    if (location === undefined) continue
+    const boundary = geometry(candidate.geojson) ?? boundingBoxGeometry(candidate.boundingbox)
+    return boundary === undefined ? { location } : { location, boundary }
   }
   return undefined
 }
 
 /** Decode the first valid GeoJSON Point returned by Photon. */
-function decodePhoton(content: string): GstarCoordinate | undefined {
+function decodePhoton(content: string): GeocoderResult | undefined {
   const value = decodeJson(content) as PhotonResponse | null
   if (value === null || typeof value !== 'object' || !Array.isArray(value.features)) {
     throw new Error('GSTAR Photon geocoder returned a non-FeatureCollection payload')
@@ -104,8 +181,8 @@ function decodePhoton(content: string): GstarCoordinate | undefined {
       || feature.geometry === null || typeof feature.geometry !== 'object') continue
     const geometry = feature.geometry as PhotonPoint
     if (geometry.type !== 'Point' || !Array.isArray(geometry.coordinates)) continue
-    const result = coordinate(geometry.coordinates[0], geometry.coordinates[1])
-    if (result !== undefined) return result
+    const location = coordinate(geometry.coordinates[0], geometry.coordinates[1])
+    if (location !== undefined) return { location }
   }
   return undefined
 }
@@ -118,6 +195,8 @@ const GEOCODERS: readonly Geocoder[] = [
       url.searchParams.set('format', 'jsonv2')
       url.searchParams.set('limit', '1')
       url.searchParams.set('accept-language', 'zh-CN')
+      url.searchParams.set('polygon_geojson', '1')
+      url.searchParams.set('polygon_threshold', '0.001')
       url.searchParams.set('q', query)
       return url
     },
@@ -213,6 +292,7 @@ function snapshot(workspaceId: WorkspaceId, record?: GstarSpatialRecord): GstarS
   return Object.freeze({
     workspaceId,
     ...(record?.location === undefined ? {} : { location: Object.freeze(copyCoordinate(record.location)) }),
+    ...(record?.boundary === undefined ? {} : { boundary: copyGeometry(record.boundary) }),
     aois: Object.freeze((record?.aois ?? []).map(aoiSnapshot)),
     ...(record === undefined ? {} : { updatedAt: record.updatedAt }),
   })
@@ -223,6 +303,7 @@ export class StorageGstarSpatialService extends GstarSpatialService {
   static inject = ['storageDomain', 'gstarSites', 'web']
 
   private stations?: KvTable<WorkspaceId, GstarSpatialRecord>
+  private readonly deletingStations = new Set<WorkspaceId>()
   private operationTail: Promise<void> = Promise.resolve()
   private operationAdmissionOpen = true
 
@@ -234,12 +315,22 @@ export class StorageGstarSpatialService extends GstarSpatialService {
   /** Open the spatial domain and bind its write chain to Provider disposal. */
   protected async [Service.init](): Promise<void> {
     const domain = await this.ctx.storageDomain.open(gstarSpatialDomainSpec)
-    this.ctx.effect(() => async () => {
-      this.operationAdmissionOpen = false
-      await this.operationTail
-      await domain.close()
-    }, 'gstar-spatial-storage.domainClose')
     this.stations = domain.table('stations')
+    try {
+      const removeDeletionParticipant = this.ctx.gstarSites.registerDeletionParticipant(
+        workspaceId => this.removeStationAssets(workspaceId),
+      )
+      this.ctx.effect(() => async () => {
+        removeDeletionParticipant()
+        this.operationAdmissionOpen = false
+        await this.operationTail
+        await domain.close()
+      }, 'gstar-spatial-storage.domainClose')
+    } catch (cause) {
+      this.stations = undefined
+      await domain.close()
+      throw cause
+    }
   }
 
   override async list(): Promise<readonly GstarSpatialSnapshot[]> {
@@ -249,20 +340,27 @@ export class StorageGstarSpatialService extends GstarSpatialService {
   }
 
   override patch(request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot> {
-    if (request.location === undefined && request.aois === undefined) {
-      return Promise.reject(new Error('gstarSpatial.patch requires location or aois'))
+    if (request.location === undefined && request.boundary === undefined && request.aois === undefined) {
+      return Promise.reject(new Error('gstarSpatial.patch requires location, boundary, or aois'))
     }
     return this.enqueueOperation(async () => {
       const sites = await this.ctx.gstarSites.list()
       if (!sites.some(site => site.workspaceId === request.workspaceId)) {
         throw new Error(`gstarSpatial.patch: Workspace ${request.workspaceId} is not a GSTAR station`)
       }
+      if (this.deletingStations.has(request.workspaceId)) {
+        throw new Error(`gstarSpatial.patch: GSTAR station ${request.workspaceId} is being deleted`)
+      }
       const stations = this.requireStations()
       const current = stations.get(request.workspaceId)
+      const boundary = request.boundary === undefined
+        ? current?.boundary
+        : request.boundary === null ? undefined : copyGeometry(request.boundary)
       const next: GstarSpatialRecord = {
         ...(request.location === undefined
           ? current?.location === undefined ? {} : { location: current.location }
           : { location: copyCoordinate(request.location) }),
+        ...(boundary === undefined ? {} : { boundary }),
         aois: request.aois === undefined ? current?.aois ?? [] : request.aois.map(aoiRecord),
         updatedAt: new Date().toISOString(),
       }
@@ -289,7 +387,11 @@ export class StorageGstarSpatialService extends GstarSpatialService {
           const resolved = geocoder.decode(result.body.content)
           completedLookups++
           if (resolved !== undefined) {
-            return this.patch({ workspaceId: request.workspaceId, location: resolved })
+            return this.patch({
+              workspaceId: request.workspaceId,
+              location: resolved.location,
+              boundary: resolved.boundary ?? null,
+            })
           }
         } catch (error) {
           failures.push(`${geocoder.name}: ${errorChain(error)}`)
@@ -307,6 +409,37 @@ export class StorageGstarSpatialService extends GstarSpatialService {
       )
     }
     throw new Error('局点自动定位未获得任何提供方响应')
+  }
+
+  /** Remove spatial assets before station membership deletion and return a durable rollback. */
+  private removeStationAssets(workspaceId: WorkspaceId): Promise<GstarSiteDeletionPreparation> {
+    this.deletingStations.add(workspaceId)
+    const preparation = this.enqueueOperation(async () => {
+      const stations = this.requireStations()
+      const current = stations.get(workspaceId)
+      try {
+        if (current !== undefined) await stations.delete(workspaceId)
+      } catch (cause) {
+        this.deletingStations.delete(workspaceId)
+        throw cause
+      }
+      return {
+        commit: () => { this.deletingStations.delete(workspaceId) },
+        rollback: async () => {
+          try {
+            if (current !== undefined) {
+              await this.enqueueOperation(async () => { await stations.put(workspaceId, current) })
+            }
+          } finally {
+            this.deletingStations.delete(workspaceId)
+          }
+        },
+      }
+    })
+    return preparation.catch((cause) => {
+      this.deletingStations.delete(workspaceId)
+      throw cause
+    })
   }
 
   /** Serialize membership checks and durable spatial commits. */

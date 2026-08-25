@@ -9,6 +9,7 @@ interface GstarViewState {
   selectedSiteId: WorkspaceId | undefined
   selectedAoiId: string | undefined
   locatingSiteId: WorkspaceId | undefined
+  focusRevision: number
   leftCollapsed: boolean
   detailsOpen: boolean
 }
@@ -16,6 +17,7 @@ interface GstarViewState {
 /** Complete mutation set for GSTAR viewing state and the DSH layout face. */
 type GstarViewActions = {
   selectSite: (draft: GstarViewState, workspaceId: WorkspaceId) => void
+  clearSelection: (draft: GstarViewState) => void
   selectAoi: (draft: GstarViewState, aoiId: string) => void
   closeAoi: (draft: GstarViewState) => void
   beginLocating: (draft: GstarViewState, workspaceId: WorkspaceId) => void
@@ -32,12 +34,19 @@ export function createGstarStore(): EngineStoreHandle<GstarViewState, GstarViewA
       selectedSiteId: undefined,
       selectedAoiId: undefined,
       locatingSiteId: undefined,
+      focusRevision: 0,
       leftCollapsed: false,
       detailsOpen: false,
     }),
     actions: {
       selectSite: (draft, workspaceId) => {
         draft.selectedSiteId = workspaceId
+        draft.selectedAoiId = undefined
+        draft.locatingSiteId = undefined
+        draft.focusRevision++
+      },
+      clearSelection: (draft) => {
+        draft.selectedSiteId = undefined
         draft.selectedAoiId = undefined
         draft.locatingSiteId = undefined
       },
@@ -47,6 +56,7 @@ export function createGstarStore(): EngineStoreHandle<GstarViewState, GstarViewA
         draft.selectedSiteId = workspaceId
         draft.selectedAoiId = undefined
         draft.locatingSiteId = workspaceId
+        draft.focusRevision++
       },
       finishLocating: (draft) => { draft.locatingSiteId = undefined },
       toggleSidebar: (draft) => { draft.leftCollapsed = !draft.leftCollapsed },

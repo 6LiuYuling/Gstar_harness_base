@@ -2,7 +2,9 @@ import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import GstarSiteService from '../src/index.ts'
-import type { GstarSiteCreateRequest, GstarSiteSnapshot } from '../src/types.ts'
+import type {
+  GstarSiteCreateRequest, GstarSiteDeleteRequest, GstarSiteSnapshot,
+} from '../src/types.ts'
 import * as invariant from '../src/invariant.ts'
 
 const SITE: GstarSiteSnapshot = Object.freeze({
@@ -16,6 +18,7 @@ const SITE: GstarSiteSnapshot = Object.freeze({
 
 class FixtureGstarSites extends GstarSiteService {
   readonly created: GstarSiteCreateRequest[] = []
+  readonly deleted: GstarSiteDeleteRequest[] = []
 
   override list(): Promise<readonly GstarSiteSnapshot[]> {
     return Promise.resolve(Object.freeze([SITE]))
@@ -23,6 +26,11 @@ class FixtureGstarSites extends GstarSiteService {
 
   override create(request: GstarSiteCreateRequest): Promise<GstarSiteSnapshot> {
     this.created.push(request)
+    return Promise.resolve(SITE)
+  }
+
+  override delete(request: GstarSiteDeleteRequest): Promise<GstarSiteSnapshot> {
+    this.deleted.push(request)
     return Promise.resolve(SITE)
   }
 }
@@ -36,7 +44,9 @@ describe('gstar-site Service Definition', () => {
 
     await expect(ctx.gstarSites.remoteExportList()).resolves.toEqual([SITE])
     await expect(ctx.gstarSites.remoteExportCreate(request)).resolves.toBe(SITE)
+    await expect(ctx.gstarSites.remoteExportDelete({ workspaceId: SITE.workspaceId })).resolves.toBe(SITE)
     expect((ctx.gstarSites as FixtureGstarSites).created).toEqual([request])
+    expect((ctx.gstarSites as FixtureGstarSites).deleted).toEqual([{ workspaceId: SITE.workspaceId }])
 
     await fiber.dispose()
     expect(ctx.get('gstarSites')).toBeUndefined()

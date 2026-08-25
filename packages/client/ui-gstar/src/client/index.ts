@@ -41,6 +41,11 @@ export function apply(ctx: ClientContext): void {
       await spatial.load()
       return site
     },
+    deleteSite: async (request) => {
+      const site = await sites.delete(request)
+      await spatial.load()
+      return site
+    },
     openSite: (workspaceId) => {
       // Never let a restored generic-Web session flash inside the GSTAR chat column.
       ctx.sessions.clear()

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
+import type { GstarSiteDeletionParticipant } from '@deepseek-ai/dsh-gstar-site'
 import type { GstarAoiSnapshot } from '@deepseek-ai/dsh-gstar-spatial/types'
 import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import type { WorkspaceId as WorkspaceIdType } from '@deepseek-ai/dsh-workspace/types'
@@ -37,27 +38,48 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
   it('persists only classified station spatial data and retains omitted fields', async () => {
     const records = new Map<WorkspaceIdType, GstarSpatialRecord>()
     const put = vi.fn(async (id: WorkspaceIdType, value: GstarSpatialRecord) => { records.set(id, value) })
+    const remove = vi.fn(async (id: WorkspaceIdType) => { records.delete(id) })
     const close = vi.fn(async () => {})
+    let deletionParticipant: ((workspaceId: WorkspaceIdType) => Promise<{
+      commit(): void
+      rollback(): Promise<void>
+    } | void>) | undefined
+    const removeParticipant = vi.fn()
 
     root = await mkdtemp(join(tmpdir(), 'dsh-gstar-spatial-loader-'))
     const configPath = join(root, 'cordis.yml')
     await writeFile(configPath, "- name: '@deepseek-ai/dsh-gstar-spatial-storage'\n")
 
     context = new Context()
-    context.provide('gstarSites', { list: async () => [SITE] } as never)
+    context.provide('gstarSites', {
+      list: async () => [SITE],
+      registerDeletionParticipant: vi.fn((participant: GstarSiteDeletionParticipant) => {
+        deletionParticipant = participant
+        return removeParticipant
+      }),
+    } as never)
     context.provide('storageDomain', {
       open: vi.fn(async () => ({
-        table: () => ({ get: (id: WorkspaceIdType) => records.get(id), put }),
+        table: () => ({ get: (id: WorkspaceIdType) => records.get(id), put, delete: remove }),
         close,
       })),
     } as never)
     const fetch = vi.fn()
-      .mockRejectedValueOnce(new Error('web fetch failed', { cause: new Error('ECONNRESET') }))
       .mockResolvedValueOnce({
-        url: 'https://photon.komoot.io/api/', statusCode: 200,
+        url: 'https://nominatim.openstreetmap.org/search', statusCode: 200,
         body: {
           kind: 'text',
-          content: '{"features":[{"geometry":{"type":"Point","coordinates":[113.2644,23.1291]}}]}',
+          content: JSON.stringify([{
+            lat: '23.1291',
+            lon: '113.2644',
+            boundingbox: ['22.9', '23.4', '112.9', '113.8'],
+            geojson: {
+              type: 'Polygon',
+              coordinates: [[
+                [113, 23], [114, 23], [114, 24], [113, 23],
+              ]],
+            },
+          }]),
         },
         truncated: false,
       })
@@ -117,28 +139,60 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
       .resolves.toMatchObject({
         workspaceId: SITE_ID,
         location: { longitude: 113.2644, latitude: 23.1291 },
+        boundary: {
+          type: 'Polygon',
+          coordinates: [[
+            { longitude: 113, latitude: 23 },
+            { longitude: 114, latitude: 23 },
+            { longitude: 114, latitude: 24 },
+            { longitude: 113, latitude: 23 },
+          ]],
+        },
         aois: [aoi],
       })
-    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch).toHaveBeenCalledTimes(1)
     expect(new URL(fetch.mock.calls[0]![0].url).searchParams.get('q')).toBe('广州')
-    expect(new URL(fetch.mock.calls[1]![0].url).hostname).toBe('photon.komoot.io')
-    expect(new URL(fetch.mock.calls[1]![0].url).searchParams.get('q')).toBe('广州')
+    expect(new URL(fetch.mock.calls[0]![0].url).searchParams.get('polygon_geojson')).toBe('1')
     expect(put).toHaveBeenCalledTimes(3)
+
+    fetch
+      .mockRejectedValueOnce(new Error('web fetch failed', { cause: new Error('ECONNRESET') }))
+      .mockResolvedValueOnce({
+        url: 'https://photon.komoot.io/api/', statusCode: 200,
+        body: {
+          kind: 'text',
+          content: '{"features":[{"geometry":{"type":"Point","coordinates":[113.2644,23.1291]}}]}',
+        },
+        truncated: false,
+      })
+    await expect(context.gstarSpatial.locate({ workspaceId: SITE_ID, query: '广州局点' }))
+      .resolves.not.toHaveProperty('boundary')
+    expect(new URL(fetch.mock.calls[2]![0].url).hostname).toBe('photon.komoot.io')
+    expect(put).toHaveBeenCalledTimes(4)
 
     fetch.mockRejectedValue(new Error('web fetch failed', { cause: new Error('ECONNRESET') }))
     await expect(context.gstarSpatial.locate({ workspaceId: SITE_ID, query: '广州局点' }))
       .rejects.toThrow(/Nominatim.*Photon.*ECONNRESET/u)
-    expect(put).toHaveBeenCalledTimes(3)
+    expect(put).toHaveBeenCalledTimes(4)
 
     await expect(context.gstarSpatial.patch({ workspaceId: ORDINARY_ID, location: { longitude: 0, latitude: 0 } }))
       .rejects.toThrow('is not a GSTAR station')
     await expect(context.gstarSpatial.patch({ workspaceId: SITE_ID }))
-      .rejects.toThrow('requires location or aois')
+      .rejects.toThrow('requires location, boundary, or aois')
+
+    expect(deletionParticipant).toBeTypeOf('function')
+    const preparation = await deletionParticipant!(SITE_ID)
+    expect(remove).toHaveBeenCalledWith(SITE_ID)
+    expect(records.has(SITE_ID)).toBe(false)
+    expect(preparation).toBeTypeOf('object')
+    await preparation!.rollback()
+    expect(records.has(SITE_ID)).toBe(true)
 
     const service = context.gstarSpatial
     await context.fiber.dispose()
     context = undefined
     expect(close).toHaveBeenCalledOnce()
+    expect(removeParticipant).toHaveBeenCalledOnce()
     await expect(service.patch({ workspaceId: SITE_ID, location: { longitude: 1, latitude: 1 } }))
       .rejects.toThrow('GSTAR spatial storage is disposing')
   })

@@ -16,7 +16,7 @@ const SITE = {
 }
 
 const ACTIONS = {
-  selectSite: vi.fn(), selectAoi: vi.fn(), closeAoi: vi.fn(), beginLocating: vi.fn(),
+  selectSite: vi.fn(), clearSelection: vi.fn(), selectAoi: vi.fn(), closeAoi: vi.fn(), beginLocating: vi.fn(),
   finishLocating: vi.fn(), toggleSidebar: vi.fn(), openDetails: vi.fn(), closeDetails: vi.fn(),
 }
 
@@ -33,6 +33,7 @@ async function setup(options: { readonly siteList?: unknown; readonly spatialLis
   ctx.provide('workspaces', { startSession } as never)
   const listSites = vi.fn().mockResolvedValue(options.siteList ?? { ok: true, value: [SITE] })
   const createSite = vi.fn().mockResolvedValue({ ok: true, value: SITE })
+  const deleteSite = vi.fn().mockResolvedValue({ ok: true, value: SITE })
   const listSpatial = vi.fn().mockResolvedValue(options.spatialList ?? {
     ok: true, value: [{ workspaceId: SITE.workspaceId, aois: [] }],
   })
@@ -42,14 +43,14 @@ async function setup(options: { readonly siteList?: unknown; readonly spatialLis
   const locateSpatial = vi.fn().mockResolvedValue({
     ok: true, value: { workspaceId: SITE.workspaceId, aois: [], location: { longitude: 113, latitude: 23 } },
   })
-  ctx.provide('remote.gstarSites', { list: listSites, create: createSite })
+  ctx.provide('remote.gstarSites', { list: listSites, create: createSite, delete: deleteSite })
   ctx.provide('remote.gstarSpatial', { list: listSpatial, patch: patchSpatial, locate: locateSpatial })
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
   const entry = ctx.slots.entries('root')[0]!
   const injected = (entry.inject as unknown as (actions: typeof ACTIONS) => GstarAppInjected)(ACTIONS)
   return {
-    ctx, fiber, entry, injected, startSession, clearSession, listSites, createSite,
+    ctx, fiber, entry, injected, startSession, clearSession, listSites, createSite, deleteSite,
     listSpatial, patchSpatial, locateSpatial,
   }
 }
@@ -96,6 +97,14 @@ describe('ui-gstar client apply', () => {
     expect(subject.listSites).toHaveBeenCalledTimes(2)
     expect(subject.listSpatial).toHaveBeenCalledTimes(2)
     disposeFlow()
+  })
+
+  it('deletes station membership through the Host and refreshes both projections', async () => {
+    const subject = await setup()
+    await expect(subject.injected.deleteSite({ workspaceId: SITE.workspaceId as never })).resolves.toEqual(SITE)
+    expect(subject.deleteSite).toHaveBeenCalledWith({ workspaceId: SITE.workspaceId })
+    expect(subject.listSites).toHaveBeenCalledTimes(2)
+    expect(subject.listSpatial).toHaveBeenCalledTimes(2)
   })
 
   it('persists location through the spatial Remote and refreshes the projection', async () => {

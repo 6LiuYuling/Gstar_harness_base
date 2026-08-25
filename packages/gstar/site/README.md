@@ -4,7 +4,9 @@ English | [中文](README.zh.md)
 
 Provider-neutral GSTAR station Service Definition on `ctx.gstarSites`. A station uses the durable `WorkspaceId` as its identity, so every later GSTAR region, source configuration, processor, and pipeline run can share one stable owner without changing the generic Workspace record.
 
-`list()` returns immutable station snapshots in the active Workspace provider's durable order. `create({ path, title })` resolves or creates the station through that provider; the user-supplied title is required and later drives Host-side geocoding. Directory validation and path canonicalization rules belong to the provider. The Remote adapters publish the same operations as `gstarSites.list` and `gstarSites.create` for a Host-backed client assembly.
+`list()` returns immutable station snapshots in the active Workspace provider's durable order. `create({ path, title })` resolves or creates the station through that provider; the user-supplied title is required and later drives Host-side geocoding. `delete({ workspaceId })` removes GSTAR classification and station-owned domain data while deliberately retaining the generic Workspace, directory, and Session logs. Directory validation and path canonicalization rules belong to the provider. Remote adapters publish all three operations for a Host-backed client assembly.
+
+Station-owned Host Providers register deletion preparations with `gstarSites`. The service prepares every durable cleanup before membership removal, rolls them back in reverse order if a later preparation or membership commit fails, and finalizes transient guards only after deletion succeeds. This keeps deletion orchestration inside the DSH Host rather than sequencing business writes in React.
 
 `GstarSiteSnapshot.updatedAt` is the Workspace metadata mutation time. It is not the GSTAR data-refresh time; a pipeline domain owns `lastSuccessfulUpdateAt` after a successful published data version.
 

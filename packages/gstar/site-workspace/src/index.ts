@@ -5,7 +5,9 @@
 
 import { Service, type Context } from '@deepseek-ai/cordis'
 import GstarSiteService from '@deepseek-ai/dsh-gstar-site'
-import type { GstarSiteCreateRequest, GstarSiteSnapshot } from '@deepseek-ai/dsh-gstar-site/types'
+import type {
+  GstarSiteCreateRequest, GstarSiteDeleteRequest, GstarSiteSnapshot,
+} from '@deepseek-ai/dsh-gstar-site/types'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import type { Workspace } from '@deepseek-ai/dsh-workspace'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
@@ -72,6 +74,36 @@ export class WorkspaceGstarSiteService extends GstarSiteService {
       if (sites.get(workspace.id) === undefined) {
         await sites.put(workspace.id, { registeredAt: new Date().toISOString() })
       }
+      return snapshot(workspace)
+    })
+  }
+
+  override delete(request: GstarSiteDeleteRequest): Promise<GstarSiteSnapshot> {
+    return this.enqueueOperation(async () => {
+      const sites = this.requireSites()
+      if (sites.get(request.workspaceId) === undefined) {
+        throw new Error(`gstarSites.delete: Workspace ${request.workspaceId} is not a GSTAR station`)
+      }
+      const workspace = this.ctx.workspaceRegistry.list()
+        .find(candidate => candidate.id === request.workspaceId)
+      if (workspace === undefined) {
+        throw new Error(`gstarSites.delete: Workspace ${request.workspaceId} does not exist`)
+      }
+      const deletion = await this.prepareDeletion(request.workspaceId)
+      try {
+        await sites.delete(request.workspaceId)
+      } catch (cause) {
+        try {
+          await deletion.rollback()
+        } catch (rollbackCause) {
+          throw new AggregateError(
+            [cause, rollbackCause],
+            `gstarSites.delete: failed to remove station ${request.workspaceId} and restore owned data`,
+          )
+        }
+        throw cause
+      }
+      deletion.commit()
       return snapshot(workspace)
     })
   }

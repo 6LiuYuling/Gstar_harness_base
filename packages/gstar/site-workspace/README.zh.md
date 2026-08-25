@@ -6,6 +6,8 @@
 
 成员关系 sidecar 不复制 Workspace 元数据。DSH Workspace 始终是局点身份和元数据的权威来源；局点所属的 GSTAR 领域通过 `workspaceId` 引用它。明确连接一个已有的普通 Workspace，会把同一身份归类为 GSTAR 局点，而不修改通用 Workspace 记录。
 
+`delete()` 会先准备全部已注册的局点所属数据清理，再只删除成员关系记录；若成员关系写入失败，则补偿已准备的清理。底层 Workspace 仍保留注册，目录与 Session 日志也不变，因此它会从 `dsh gstar` 消失，但仍可在 `dsh web` 中作为普通 Workspace 使用。
+
 ## 模型体验
 
 无，因为该 Provider 不贡献模型可见输入。

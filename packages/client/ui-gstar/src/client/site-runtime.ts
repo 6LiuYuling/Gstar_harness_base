@@ -5,7 +5,9 @@ import {
   createSnapshotStore, type ClientContext, type SnapshotStore,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-gstar-site/remote'
-import type { GstarSiteCreateRequest, GstarSiteSnapshot } from '@deepseek-ai/dsh-gstar-site/types'
+import type {
+  GstarSiteCreateRequest, GstarSiteDeleteRequest, GstarSiteSnapshot,
+} from '@deepseek-ai/dsh-gstar-site/types'
 
 /** Host-backed station-list state consumed by the GSTAR root component. */
 export interface GstarSiteListState {
@@ -54,6 +56,16 @@ export class GstarSiteRuntime {
     const result = await this.remote.create(request)
     if (!result.ok) {
       throw new Error(`gstarSites.create failed: ${result.error.code}: ${result.error.message}`)
+    }
+    await this.load()
+    return result.value
+  }
+
+  /** Remove station classification and refresh the authoritative list. */
+  async delete(request: GstarSiteDeleteRequest): Promise<GstarSiteSnapshot> {
+    const result = await this.remote.delete(request)
+    if (!result.ok) {
+      throw new Error(`gstarSites.delete failed: ${result.error.code}: ${result.error.message}`)
     }
     await this.load()
     return result.value

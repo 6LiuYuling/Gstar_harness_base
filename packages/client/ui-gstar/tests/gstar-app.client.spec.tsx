@@ -80,6 +80,7 @@ function props(options: {
   readonly sites?: readonly GstarSiteSnapshot[]
   readonly spatial?: readonly GstarSpatialSnapshot[]
   readonly createSite?: GstarAppProps['createSite']
+  readonly deleteSite?: GstarAppProps['deleteSite']
   readonly patchSpatial?: GstarAppProps['patchSpatial']
   readonly locateSpatial?: GstarAppProps['locateSpatial']
   readonly openSite?: GstarAppProps['openSite']
@@ -104,6 +105,7 @@ function props(options: {
     useStore: storeHook(store),
     SessionProvider: ({ children }) => children('session-1' as never),
     createSite: options.createSite ?? vi.fn(),
+    deleteSite: options.deleteSite ?? vi.fn(),
     patchSpatial: options.patchSpatial ?? vi.fn(),
     locateSpatial: options.locateSpatial ?? vi.fn(),
     openSite: options.openSite ?? vi.fn(),
@@ -131,6 +133,20 @@ describe('GstarApp three-column shell', () => {
     fireEvent.click(screen.getByText(SITE.title))
     expect(openSite).toHaveBeenCalledWith(SITE.workspaceId)
     expect(screen.getByTestId('dsh-conversation')).toBeTruthy()
+  })
+
+  it('confirms station deletion and preserves the generic Workspace contract in its copy', async () => {
+    const deleteSite = vi.fn().mockResolvedValue(SITE)
+    render(<GstarApp {...props({ sites: [SITE], deleteSite })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    expect(screen.getByRole('dialog', { name: `删除局点“${SITE.title}”？` })).toBeTruthy()
+    expect(screen.getByText(/原工作目录和 DSH 会话日志不会删除/u)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '确认删除局点' }))
+
+    await waitFor(() => {
+      expect(deleteSite).toHaveBeenCalledWith({ workspaceId: SITE.workspaceId })
+    })
   })
 
   it('creates a named station through the DSH directory flow and locates it automatically', async () => {

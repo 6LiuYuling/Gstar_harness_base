@@ -2,9 +2,9 @@
 
 [English](README.md) | 中文
 
-基于 `ctx.gstarSpatial` 的 GSTAR 空间 Service Definition，与具体 Provider 无关。它以局点持久化 `WorkspaceId` 为键，在 Host 能力后统一保存局点位置、已发布 AOI 几何、规范化实体字段与采集溯源。浏览器通过生成的 Typert Remote 获得类型化快照；Cesium 只是投影 Consumer，不成为业务数据权威。
+基于 `ctx.gstarSpatial` 的 GSTAR 空间 Service Definition，与具体 Provider 无关。它以局点持久化 `WorkspaceId` 为键，在 Host 能力后统一保存局点位置、行政区/地点边界、已发布 AOI 几何、规范化实体字段与采集溯源。浏览器通过生成的 Typert Remote 获得类型化快照；Cesium 只是投影 Consumer，不成为业务数据权威。
 
-`list()` 为每个已分类局点返回一个空间快照。`locate({ workspaceId, query })` 由当前 Host Provider 根据用户输入的局点名称解析位置并持久化标记。`patch({ workspaceId, location?, aois? })` 保留未提供字段，因此自动局点定位与流水线 AOI 发布可以独立提交。AOI 支持 WGS84 Polygon 或 MultiPolygon 几何，并在同一发布快照中携带实体字段和溯源记录。
+`list()` 为每个已分类局点返回一个空间快照。`locate({ workspaceId, query })` 由当前 Host Provider 根据用户输入的局点名称解析位置，并持久化标记及可用的 Polygon/MultiPolygon 边界。`patch({ workspaceId, location?, boundary?, aois? })` 保留未提供字段；`boundary: null` 会明确清除过期边界。因此自动局点定位与流水线 AOI 发布可以独立提交。AOI 支持 WGS84 Polygon 或 MultiPolygon 几何，并在同一发布快照中携带实体字段和溯源记录。
 
 ## 模型体验
 

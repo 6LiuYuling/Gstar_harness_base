@@ -86,6 +86,8 @@ export interface GstarSpatialSnapshot {
   readonly workspaceId: WorkspaceId
   /** Station marker location; absent until a real location is committed. */
   readonly location?: GstarCoordinate
+  /** Administrative or place boundary resolved with the station location. */
+  readonly boundary?: GstarAoiGeometry
   /** AOIs published for the station. */
   readonly aois: readonly GstarAoiSnapshot[]
   /** Most recent spatial record mutation, or undefined before the first mutation. */
@@ -98,6 +100,8 @@ export interface GstarSpatialPatchRequest {
   readonly workspaceId: WorkspaceId
   /** New marker location when the caller is committing station placement. */
   readonly location?: GstarCoordinate
+  /** New station boundary, `null` to clear it, or omitted to preserve it. */
+  readonly boundary?: GstarAoiGeometry | null
   /** Complete AOI replacement when a processing pipeline publishes a data version. */
   readonly aois?: readonly GstarAoiSnapshot[]
 }

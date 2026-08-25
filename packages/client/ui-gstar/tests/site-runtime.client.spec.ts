@@ -15,13 +15,17 @@ describe('GstarSiteRuntime', () => {
   it('loads Host membership and refreshes it after station creation', async () => {
     const list = vi.fn().mockResolvedValue({ ok: true, value: [SITE] })
     const create = vi.fn().mockResolvedValue({ ok: true, value: SITE })
-    const runtime = new GstarSiteRuntime({ list, create } as never)
+    const remove = vi.fn().mockResolvedValue({ ok: true, value: SITE })
+    const runtime = new GstarSiteRuntime({ list, create, delete: remove } as never)
 
     await runtime.load()
     expect(runtime.list.getSnapshot()).toEqual({ items: [SITE], phase: 'ready' })
     await expect(runtime.create({ path: SITE.path, title: SITE.title })).resolves.toBe(SITE)
     expect(create).toHaveBeenCalledWith({ path: SITE.path, title: SITE.title })
     expect(list).toHaveBeenCalledTimes(2)
+    await expect(runtime.delete({ workspaceId: SITE.workspaceId })).resolves.toBe(SITE)
+    expect(remove).toHaveBeenCalledWith({ workspaceId: SITE.workspaceId })
+    expect(list).toHaveBeenCalledTimes(3)
   })
 
   it('publishes Remote failures and preserves the last successful items', async () => {
@@ -32,7 +36,11 @@ describe('GstarSiteRuntime', () => {
       ok: false,
       error: { code: 'NOT_FOUND', message: 'directory missing' },
     })
-    const runtime = new GstarSiteRuntime({ list, create } as never)
+    const remove = vi.fn().mockResolvedValue({
+      ok: false,
+      error: { code: 'INTERNAL', message: 'delete failed' },
+    })
+    const runtime = new GstarSiteRuntime({ list, create, delete: remove } as never)
 
     await runtime.load()
     await runtime.load()
@@ -43,6 +51,8 @@ describe('GstarSiteRuntime', () => {
     })
     await expect(runtime.create({ path: '/missing', title: '缺失局点' }))
       .rejects.toThrow('gstarSites.create failed: NOT_FOUND: directory missing')
+    await expect(runtime.delete({ workspaceId: SITE.workspaceId }))
+      .rejects.toThrow('gstarSites.delete failed: INTERNAL: delete failed')
   })
 
   it('ignores a stale list response that resolves after a newer refresh', async () => {
