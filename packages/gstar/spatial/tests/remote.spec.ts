@@ -1,4 +1,5 @@
 import { Context } from '@deepseek-ai/cordis'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import GstarSpatialService from '../src/index.ts'
@@ -26,6 +27,14 @@ class FixtureGstarSpatial extends GstarSpatialService {
 }
 
 describe('gstar-spatial Service Definition', () => {
+  it('owns the runtime codec dependency emitted by its generated Remote', () => {
+    const manifest = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+    ) as { dependencies?: Readonly<Record<string, string>> }
+
+    expect(manifest.dependencies?.zod).toBe('^4.4.3')
+  })
+
   it('publishes the provider and delegates both Remote adapters', async () => {
     const ctx = new Context()
     const fiber = ctx.plugin(FixtureGstarSpatial)
