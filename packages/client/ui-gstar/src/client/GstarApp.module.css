@@ -492,6 +492,49 @@
   backdrop-filter: blur(10px);
 }
 
+.mapTitle[data-with-mode-switch] {
+  max-width: min(420px, calc(100% - 148px));
+}
+
+.mapModeSwitch {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: repeat(2, 42px);
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 92%, transparent);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.mapModeSwitch button {
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 30px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mapModeSwitch button:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.mapModeSwitch button[aria-pressed='true'] {
+  background: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-brand-primary-invert);
+}
+
 .mapTitle strong {
   overflow: hidden;
   font-size: 14px;

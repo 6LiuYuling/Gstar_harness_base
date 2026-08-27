@@ -11,11 +11,12 @@ import { createGstarStore } from '../src/client/stores.ts'
 vi.mock('../src/client/CesiumGlobe.tsx', () => ({
   CesiumGlobe: (props: {
     readonly sites: readonly GstarSiteSnapshot[]
+    readonly mode: '2d' | '3d'
     readonly selectedSiteId?: string
     readonly onSelectSite: (id: never) => void
     readonly onSelectAoi: (workspaceId: never, aoiId: string) => void
   }) => (
-    <div aria-label="GSTAR Cesium 地球">
+    <div aria-label="GSTAR Cesium 地图" data-map-mode={props.mode}>
       {props.sites.map(site => (
         <button key={site.workspaceId} type="button" onClick={() => { props.onSelectSite(site.workspaceId as never) }}>
           地图局点：{site.title}
@@ -46,7 +47,7 @@ const AOI_SPATIAL: GstarSpatialSnapshot = {
   location: { longitude: 113.3, latitude: 23.1 },
   aois: [{
     id: 'aoi-1',
-    name: '天河道路 AOI',
+    name: '天河道路',
     category: '道路',
     geometry: {
       type: 'Polygon',
@@ -135,6 +136,24 @@ describe('GstarApp three-column shell', () => {
     expect(screen.getByTestId('dsh-conversation')).toBeTruthy()
   })
 
+  it('switches a selected station between the Cesium 3D and 2D projections', () => {
+    render(<GstarApp {...props({ sites: [SITE], spatial: [AOI_SPATIAL] })} />)
+
+    expect(screen.queryByRole('group', { name: '地图视图' })).toBeNull()
+    fireEvent.click(screen.getByText(SITE.title))
+
+    const map = screen.getByLabelText('GSTAR Cesium 地图')
+    const threeDimensional = screen.getByRole('button', { name: '3D' })
+    const twoDimensional = screen.getByRole('button', { name: '2D' })
+    expect(map.getAttribute('data-map-mode')).toBe('3d')
+    expect(threeDimensional.getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.click(twoDimensional)
+    expect(map.getAttribute('data-map-mode')).toBe('2d')
+    expect(twoDimensional.getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText('CESIUM 2D VIEW')).toBeTruthy()
+  })
+
   it('confirms station deletion and preserves the generic Workspace contract in its copy', async () => {
     const deleteSite = vi.fn().mockResolvedValue(SITE)
     render(<GstarApp {...props({ sites: [SITE], deleteSite })} />)
@@ -193,7 +212,7 @@ describe('GstarApp three-column shell', () => {
     expect(screen.getByRole('complementary', { name: '天河道路 AOI 详情' })).toBeTruthy()
     expect(screen.getByText('体育西路')).toBeTruthy()
     expect(screen.getByText('OpenStreetMap Overpass')).toBeTruthy()
-    expect(screen.getByText('ODbL-1.0')).toBeTruthy()
+    expect(screen.getByText(/ODbL-1.0/u)).toBeTruthy()
     expect(screen.getByText('sha256:test')).toBeTruthy()
   })
 

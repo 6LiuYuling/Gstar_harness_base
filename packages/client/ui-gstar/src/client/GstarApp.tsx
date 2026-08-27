@@ -14,7 +14,7 @@ import type {
 import type {
   GstarAoiSnapshot, GstarSpatialLocateRequest, GstarSpatialPatchRequest, GstarSpatialSnapshot,
 } from '@deepseek-ai/dsh-gstar-spatial/types'
-import { CesiumGlobe } from './CesiumGlobe.tsx'
+import { CesiumGlobe, type GstarMapMode } from './CesiumGlobe.tsx'
 import type { GstarSiteListState } from './site-runtime.ts'
 import type { GstarSpatialListState } from './spatial-runtime.ts'
 import type { createGstarStore } from './stores.ts'
@@ -129,6 +129,7 @@ export function GstarApp({
   const [deleteTarget, setDeleteTarget] = useState<GstarSiteSnapshot>()
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string>()
+  const [mapMode, setMapMode] = useState<GstarMapMode>('3d')
 
   useEffect(() => {
     if (flowOpen && !directoryFlowAvailable) setFlowOpen(false)
@@ -285,7 +286,7 @@ export function GstarApp({
                   autoFocus
                   value={stationName}
                   placeholder="例如：北京市朝阳区"
-                  onChange={event => { setStationName(event.currentTarget.value) }}
+                  onChange={(event) => { setStationName(event.currentTarget.value) }}
                 />
               </label>
               <div className={css.directoryField}>
@@ -354,6 +355,7 @@ export function GstarApp({
           <CesiumGlobe
             sites={siteState.items}
             spatial={spatialState.items}
+            mode={mapMode}
             focusRevision={view.focusRevision}
             {...(view.selectedSiteId === undefined ? {} : { selectedSiteId: view.selectedSiteId })}
             {...(view.selectedAoiId === undefined ? {} : { selectedAoiId: view.selectedAoiId })}
@@ -363,14 +365,35 @@ export function GstarApp({
               actions.selectAoi(aoiId)
             }}
           />
-          <div className={css.mapTitle}>
-            <span>CESIUM GLOBAL VIEW</span>
+          <div
+            className={css.mapTitle}
+            data-with-mode-switch={selectedSite === undefined ? undefined : ''}
+          >
+            <span>CESIUM {mapMode.toUpperCase()} VIEW</span>
             <strong>{selectedSite?.title ?? '全球局点总览'}</strong>
             <small>
               {selectedSpatial?.aois.length ?? 0} 个已发布 AOI ·
               {selectedSpatial?.boundary === undefined ? ' 局点范围待获取' : ' 局点范围已标注'}
             </small>
           </div>
+          {selectedSite === undefined ? null : (
+            <div className={css.mapModeSwitch} role="group" aria-label="地图视图">
+              <button
+                type="button"
+                aria-pressed={mapMode === '3d'}
+                onClick={() => { setMapMode('3d') }}
+              >
+                3D
+              </button>
+              <button
+                type="button"
+                aria-pressed={mapMode === '2d'}
+                onClick={() => { setMapMode('2d') }}
+              >
+                2D
+              </button>
+            </div>
+          )}
           {view.locatingSiteId === undefined ? null : (
             <div className={css.locatingNotice} role="status">
               <span>自动定位</span>

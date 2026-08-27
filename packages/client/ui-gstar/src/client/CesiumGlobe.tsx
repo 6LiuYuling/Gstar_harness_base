@@ -14,6 +14,9 @@ const CESIUM_WIDGET_STYLES = `${CESIUM_ASSET_BASE}Widgets/widgets.css`
 type CesiumModule = typeof Cesium
 type CesiumBuildModuleUrl = typeof Cesium.buildModuleUrl & { setBaseUrl(value: string): void }
 
+/** User-selected Cesium projection for the station map. */
+export type GstarMapMode = '2d' | '3d'
+
 interface GlobeRuntime {
   readonly Cesium: CesiumModule
   readonly viewer: Viewer
@@ -29,6 +32,7 @@ type GlobePick =
 export interface CesiumGlobeProps {
   readonly sites: readonly GstarSiteSnapshot[]
   readonly spatial: readonly GstarSpatialSnapshot[]
+  readonly mode: GstarMapMode
   readonly selectedSiteId?: WorkspaceId
   readonly selectedAoiId?: string
   /** Monotonic selection request, allowing a repeated click to refit the camera. */
@@ -59,7 +63,7 @@ function hierarchy(Cesium: CesiumModule, rings: readonly GstarLinearRing[]) {
 /** Stable category bucket for the three theme-backed AOI colors. */
 function categoryBucket(category: string): 0 | 1 | 2 {
   let hash = 0
-  for (const char of category) hash = (hash * 31 + char.codePointAt(0)!) >>> 0
+  for (const char of category) hash = (hash * 31 + (char.codePointAt(0) ?? 0)) >>> 0
   return (hash % 3) as 0 | 1 | 2
 }
 
@@ -121,7 +125,7 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
         homeButton: false,
         infoBox: false,
         navigationHelpButton: false,
-        scene3DOnly: true,
+        scene3DOnly: false,
         sceneModePicker: false,
         selectionIndicator: false,
         timeline: false,
@@ -155,6 +159,16 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
       disposeStyles()
     }
   }, [])
+
+  useEffect(() => {
+    if (runtime === undefined) return
+    const { Cesium, viewer } = runtime
+    const targetMode = props.mode === '2d' ? Cesium.SceneMode.SCENE2D : Cesium.SceneMode.SCENE3D
+    if (viewer.scene.mode === targetMode) return
+    if (props.mode === '2d') viewer.scene.morphTo2D(0)
+    else viewer.scene.morphTo3D(0)
+    viewer.scene.requestRender()
+  }, [props.mode, runtime])
 
   useEffect(() => {
     if (runtime === undefined) return
@@ -268,17 +282,19 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
         duration: 1.2,
         offset: new Cesium.HeadingPitchRange(
           0,
-          -0.65,
+          props.mode === '2d' ? -Math.PI / 2 : -0.65,
           boundaryEntities.length === 0 && selectedAoiEntities.length === 0 ? 450_000 : 0,
         ),
       })
     }
-  }, [props.sites, props.spatial, props.selectedSiteId, props.selectedAoiId, props.focusRevision, runtime])
+  }, [
+    props.sites, props.spatial, props.mode, props.selectedSiteId, props.selectedAoiId, props.focusRevision, runtime,
+  ])
 
   return (
     <div className={css.root}>
-      <div ref={containerRef} className={css.canvas} aria-label="GSTAR Cesium 地球" />
-      {runtime === undefined && error === undefined ? <p className={css.status}>正在加载 Cesium 地球…</p> : null}
+      <div ref={containerRef} className={css.canvas} aria-label={`GSTAR Cesium ${props.mode.toUpperCase()} 地图`} />
+      {runtime === undefined && error === undefined ? <p className={css.status}>正在加载 Cesium 地图…</p> : null}
       {error === undefined ? null : <p className={css.status} role="alert">Cesium 加载失败：{error}</p>}
     </div>
   )
