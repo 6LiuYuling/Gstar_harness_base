@@ -35,6 +35,8 @@ const AOI_CATEGORIES: readonly GstarAoiCategory[] = [
   '政', '企', '金融', '教育', '医疗', '商场', '居民区',
 ]
 
+const AOI_CATEGORY_SET: ReadonlySet<string> = new Set(AOI_CATEGORIES)
+
 /** Provider configuration for bounded public OpenStreetMap acquisition. */
 export interface Config {
   /** Overpass interpreter endpoint used for direct AOI acquisition. */
@@ -668,9 +670,15 @@ function copyAoi(aoi: GstarAoiSnapshot | GstarAoiRecord) {
   }
 }
 
-/** Convert a durable mutable AOI record into the public readonly projection. */
-function aoiSnapshot(record: GstarAoiRecord): GstarAoiSnapshot {
-  return copyAoi(record)
+/** Narrow a durable v0 category without guessing how an obsolete taxonomy should map. */
+function publicAoiCategory(value: string): GstarAoiCategory | undefined {
+  return AOI_CATEGORY_SET.has(value) ? value as GstarAoiCategory : undefined
+}
+
+/** Convert a compatible durable AOI record into the public readonly projection. */
+function aoiSnapshot(record: GstarAoiRecord): GstarAoiSnapshot | undefined {
+  const category = publicAoiCategory(record.category)
+  return category === undefined ? undefined : { ...copyAoi(record), category }
 }
 
 /** Convert a public readonly AOI projection into a durable mutable record. */
@@ -684,7 +692,9 @@ function snapshot(workspaceId: WorkspaceId, record?: GstarSpatialRecord): GstarS
     workspaceId,
     ...(record?.location === undefined ? {} : { location: Object.freeze(copyCoordinate(record.location)) }),
     ...(record?.boundary === undefined ? {} : { boundary: copyGeometry(record.boundary) }),
-    aois: Object.freeze((record?.aois ?? []).map(aoiSnapshot)),
+    aois: Object.freeze((record?.aois ?? [])
+      .map(aoiSnapshot)
+      .filter((aoi): aoi is GstarAoiSnapshot => aoi !== undefined)),
     ...(record === undefined ? {} : { updatedAt: record.updatedAt }),
   })
 }

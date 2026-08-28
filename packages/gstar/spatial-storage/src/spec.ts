@@ -55,7 +55,9 @@ export const gstarProvenanceRecord = z.object({
 export const gstarAoiRecord = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  category: z.enum(['政', '企', '金融', '教育', '医疗', '商场', '居民区']),
+  // Keep the v0 durable boundary open so pre-taxonomy AOIs remain readable.
+  // The Provider narrows this string to the seven public toolbar categories.
+  category: z.string().min(1),
   geometry: gstarAoiGeometryRecord,
   entities: z.array(gstarEntityRecord),
   provenance: z.array(gstarProvenanceRecord),
@@ -76,7 +78,7 @@ export type GstarSpatialRecord = z.infer<typeof gstarSpatialRecord>
 /** GSTAR spatial catalog keyed by classified station Workspace identity. */
 export const gstarSpatialDomainSpec = defineDomain({
   name: 'gstar_spatial',
-  version: 1,
+  version: 0,
   tables: {
     stations: domainTable<WorkspaceId, GstarSpatialRecord>(gstarSpatialRecord),
   },

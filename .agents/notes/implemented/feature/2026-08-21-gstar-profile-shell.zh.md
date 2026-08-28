@@ -16,6 +16,8 @@ GSTAR Shell 仅在一个持久化 DSH Workspace 被明确归类为局点后，�
 
 区域资产属于与 Provider 无关的 `ctx.gstarSpatial` 领域，并以 `workspaceId` 关联局点，使一个局点 Workspace 能够拥有多个 AOI。其快照组合持久化局点标记与行政区/地点边界、按政、企、金融、教育、医疗、商场、居民区分类的 WGS84 Polygon/MultiPolygon AOI、规范化实体字段与采集溯源。除列表、定位和 patch 外，该 Service 还提供直接 AOI 刷新与公开数据源目录。随附的 `storage-domain` Provider 通过 `ctx.gstarSites` 过滤每次空间读写，因此普通 Workspace 无法从空间路径泄漏进 GSTAR。
 
+持久化 `gstar_spatial` 单元保持格式版本 0：其 schema 接受旧版分类字符串，公开快照则只暴露七类分类体系中的精确成员。不受支持的旧 AOI 仍保留在存储中，并且在显式 AOI 发布替换它们之前不会进入上边栏投影，从而既不做破坏性清理，也不猜测性重分类。
+
 GSTAR 根插件是三栏 Client 插件：左侧是已分类局点列表，中间是 Cesium 地图，右侧是标准 DSH 对话。它按标准约定声明 `conversation`、`details` 和 `shell.overlay`，并通过自身根查看状态 store 提供 `ctx.layout` action face。这样无需挂载标准 `ui-layout` 根插件，即可保留 DSH Conversation、工具详情、Session 日志与 Agent 行为。选择局点会调用标准 Workspace Client 服务，为该 Workspace 启动 Session，并显示包含七类 AOI 筛选、全选、公开来源查看、OSM 刷新和 3D/2D 投影切换的地图上边栏。两种投影都在卫星图层上渲染经过相同筛选的 Host AOI，每次切换投影都会重新适配所选几何范围。
 
 Cesium 运行时文件不由第二套前端托管。`dsh-gstar-cesium-assets` 贡献一条 DSH Web Host 前缀路由，提供已安装的 Workers、ThirdParty、Assets 和 Widgets 目录；`ui-gstar` 打包匹配的 API，并把模块基址指向该路由。Cesium 只在轻度暗色化、保留局点尺度道路、建筑与地表细节的卫星图层上投影 Host 快照。未提交坐标的局点明确保持未定位。创建时必须输入局点名称并使用标准目录流程；`gstarSpatial.locate` 通过 Host `ctx.web` Provider 固定访问 Nominatim 与 Photon 解析名称、持久化坐标及可用的 Nominatim Polygon/MultiPolygon 边界，并让 Cesium 适配所选局点边界，不再要求浏览器端点击地图。每个边界环都以高对比度折线框出；只有点位的结果继续使用固定距离相机后备。运行时支持动态代理配置时，CLI 会在 Profile 启动前将继承的 HTTP(S) 代理变量应用到 Node 全局 dispatcher。
@@ -46,10 +48,10 @@ CLI 测试固定 `gstar` 别名和应用参数边界，App Boot 测试固定随�
 
 GSTAR Client 组合测试固定两个生成 contribution 的挂载与逆序销毁。UI apply 与运行时测试固定精确 Remote 依赖、成功/错误信封处理、创建、删除或空间变更后刷新、过期响应抑制、directory-flow 声明、标准 conversation/details slot 和占位者实时可用性。Loader 组合测试覆盖持久化成员关系删除、通用 Workspace 身份保留、边界持久化、空间清理补偿与删除准入关闭。组件测试驱动带名称与 Host 目录的局点创建、Host 自动定位、删除确认、局点选择、七类筛选、来源模式展示、OSM 自动刷新、3D/2D 切换、AOI 选择、实体字段展示与溯源展示。
 
-空间 Service Definition 测试固定 Remote 委托。其 storage Provider 测试通过真实 Loader/Include 组合运行，证明局点过滤、未提供字段保留、带局点后缀规范化的 Nominatim 至 Photon 传输降级、有界 Overpass 请求构造、OSM 分类与溯源发布、来源目录角色、位置与 AOI 提交、普通 Workspace 拒绝、串行销毁和领域关闭。CLI 测试固定继承代理启动及其较旧 Node 诊断。Cesium 资产测试固定路径穿越防护、MIME、不可变缓存、路由组合与方法拒绝。
+空间 Service Definition 测试固定 Remote 委托。其 storage Provider 测试通过真实 Loader/Include 组合运行，证明局点过滤、未提供字段保留、不做重分类的版本 0 分类兼容、带局点后缀规范化的 Nominatim 至 Photon 传输降级、有界 Overpass 请求构造、OSM 分类与溯源发布、来源目录角色、位置与 AOI 提交、普通 Workspace 拒绝、串行销毁和领域关闭。CLI 测试固定继承代理启动及其较旧 Node 诊断。Cesium 资产测试固定路径穿越防护、MIME、不可变缓存、路由组合与方法拒绝。
 
 包级 Model Experience 审计把 GSTAR Bundle、UI、局点/空间 Service Definition 及其 Provider、Cesium Host 路由和 Client Remote 组合归类为模型中性 contribution。
 
 ## Consequences
 
-`gstar` 组合无需复制 Web 基础设施或修改通用 Workspace 约定，即可启动为基于真实 Workspace 的三栏局点界面。普通 Web Workspace 不进入 GSTAR，除非用户明确选择其路径并将其归类为局点。局点标记、边界、OSM AOI、实体和溯源都是持久化 Host 数据；位置、边界或 AOI 发布缺失时会明确保持缺失。用户可以筛选七类 AOI、查看直接源与参考源、刷新 OSM，并从 GSTAR 删除测试局点而不删除目录或 DSH 历史。选择带边界的局点会用框线标出，并让 Cesium 在 3D 或 2D 投影中适配其几何范围。右侧是真实 DSH Conversation 树，而不是仿制对话组件，其只读局点查询由调用 Session 限定。官方来源专用连接器、数据处理、带版本流水线执行与变更型 Agent 工具仍作为后续独立能力实现。
+`gstar` 组合无需复制 Web 基础设施或修改通用 Workspace 约定，即可启动为基于真实 Workspace 的三栏局点界面。现有格式版本 0 的空间存储无需删除即可打开；旧分类不属于当前七类筛选项的 AOI 保持持久化，但不会显示。普通 Web Workspace 不进入 GSTAR，除非用户明确选择其路径并将其归类为局点。局点标记、边界、OSM AOI、实体和溯源都是持久化 Host 数据；位置、边界或 AOI 发布缺失时会明确保持缺失。用户可以筛选七类 AOI、查看直接源与参考源、刷新 OSM，并从 GSTAR 删除测试局点而不删除目录或 DSH 历史。选择带边界的局点会用框线标出，并让 Cesium 在 3D 或 2D 投影中适配其几何范围。右侧是真实 DSH Conversation 树，而不是仿制对话组件，其只读局点查询由调用 Session 限定。官方来源专用连接器、数据处理、带版本流水线执行与变更型 Agent 工具仍作为后续独立能力实现。

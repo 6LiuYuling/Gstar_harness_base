@@ -10,7 +10,9 @@ import type { GstarSiteDeletionParticipant } from '@deepseek-ai/dsh-gstar-site'
 import type { GstarAoiSnapshot } from '@deepseek-ai/dsh-gstar-spatial/types'
 import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import type { WorkspaceId as WorkspaceIdType } from '@deepseek-ai/dsh-workspace/types'
-import StorageGstarSpatialService, { type GstarSpatialRecord } from '../src/index.ts'
+import StorageGstarSpatialService, {
+  gstarAoiRecord, gstarSpatialDomainSpec, type GstarSpatialRecord,
+} from '../src/index.ts'
 import * as invariant from '../src/invariant.ts'
 
 let root: string | undefined
@@ -112,6 +114,37 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
       config: { path: pathToFileURL(configPath).href },
     })
     await context.loader.await()
+
+    const legacyRecord: GstarSpatialRecord = {
+      aois: [{
+        id: 'legacy-road',
+        name: '旧版道路 AOI',
+        category: '道路',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[
+            { longitude: 113, latitude: 23 },
+            { longitude: 114, latitude: 23 },
+            { longitude: 114, latitude: 24 },
+            { longitude: 113, latitude: 23 },
+          ]],
+        },
+        entities: [],
+        provenance: [],
+        updatedAt: '2026-08-20T08:00:00.000Z',
+      }],
+      updatedAt: '2026-08-20T08:00:00.000Z',
+    }
+    expect(gstarSpatialDomainSpec.version).toBe(0)
+    expect(gstarAoiRecord.safeParse(legacyRecord.aois[0]).success).toBe(true)
+    records.set(SITE_ID, legacyRecord)
+    await expect(context.gstarSpatial.list()).resolves.toEqual([{
+      workspaceId: SITE_ID,
+      aois: [],
+      updatedAt: '2026-08-20T08:00:00.000Z',
+    }])
+    expect(records.get(SITE_ID)).toBe(legacyRecord)
+    records.delete(SITE_ID)
 
     await expect(context.gstarSpatial.list()).resolves.toEqual([{ workspaceId: SITE_ID, aois: [] }])
     await expect(context.gstarSpatial.patch({
