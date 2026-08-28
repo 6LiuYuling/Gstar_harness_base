@@ -16,7 +16,7 @@ const SITE = {
 const AOI = {
   id: 'aoi-1',
   name: '广州道路',
-  category: '道路',
+  category: '政',
   geometry: {
     type: 'Polygon' as const,
     coordinates: [[
@@ -91,12 +91,12 @@ describe('gstar_station_data', () => {
     await ctx.plugin({ inject: [...inject], apply }).await()
     const definition = register.mock.calls[0]![0] as {
       name: string
-      isConcurrencySafe(): boolean
+      isConcurrencySafe(args: unknown): boolean
       execute(args: unknown, exec: { agent: Agent }): Promise<string>
       output: { render(args: unknown, value: string): Array<{ text: string }> }
     }
     expect(definition.name).toBe('gstar_station_data')
-    expect(definition.isConcurrencySafe()).toBe(true)
+    expect(definition.isConcurrencySafe({})).toBe(true)
     const value = await definition.execute({}, { agent: agent(SITE.path) })
     expect(definition.output.render({}, value)[0]?.text).toBe(value)
   })

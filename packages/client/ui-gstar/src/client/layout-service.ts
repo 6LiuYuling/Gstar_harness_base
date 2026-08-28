@@ -10,7 +10,10 @@ type GstarActions = BoundActions<ReturnType<typeof createGstarStore>>
 export class GstarLayoutController implements ILayout {
   private actions?: GstarActions
 
-  /** Attach the root entry's bound actions during its first render. */
+  /**
+   * Attach the root entry's bound actions during its first render.
+   * @param actions - Bound GSTAR root-store actions.
+   */
   attach(actions: GstarActions): void {
     this.actions = actions
   }

@@ -16,7 +16,7 @@ import { createGstarStore } from './stores.ts'
 export { GstarSiteRuntime } from './site-runtime.ts'
 export type { GstarSiteListState } from './site-runtime.ts'
 export { GstarSpatialRuntime } from './spatial-runtime.ts'
-export type { GstarSpatialListState } from './spatial-runtime.ts'
+export type { GstarSourceListState, GstarSpatialListState } from './spatial-runtime.ts'
 
 /** Services required by the GSTAR browser plugin. */
 export const inject = ['slots', 'sessions', 'workspaces', 'remote', 'remote.gstarSites', 'remote.gstarSpatial']
@@ -31,6 +31,7 @@ export function apply(ctx: ClientContext): void {
   const layout = new GstarLayoutController()
   void sites.load()
   void spatial.load()
+  void spatial.loadSources()
   const directoryFlow: HostObservable<boolean> = {
     getSnapshot: () => ctx.slots.entries('conversation.hero.workspace.directoryFlow').length > 0,
     subscribe: listener => ctx.slots.subscribe('conversation.hero.workspace.directoryFlow', listener),
@@ -53,7 +54,8 @@ export function apply(ctx: ClientContext): void {
     },
     patchSpatial: request => spatial.patch(request),
     locateSpatial: request => spatial.locate(request),
-    hooks: { directoryFlow, sites: sites.list, spatial: spatial.list },
+    refreshAois: request => spatial.refreshAois(request),
+    hooks: { directoryFlow, sites: sites.list, sources: spatial.sources, spatial: spatial.list },
   })
 
   ctx.effect(

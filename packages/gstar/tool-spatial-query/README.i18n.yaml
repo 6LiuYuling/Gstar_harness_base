@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/gstar/tool-spatial-query/README.md
 README.md: 2a94ded78c278d902bdb279328f6bc22722d23c1
-README.zh.md: 53bee9cf6561b0dc68281c8afa7511ed428c3ee0
+README.zh.md: cb0f3e54c125da6c3f22b6c30ce81bfba9329372

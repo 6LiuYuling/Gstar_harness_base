@@ -12,7 +12,7 @@
 
 #### 模型看到什么
 
-模型看到生成的 [`gstar_station_data` schema](../../../docs/tool-catalog.md#deepseek-aidsh-gstar-tool-spatial-query)。它提供可选 AOI id 与受限实体数量；局点身份不会成为模型可控参数。
+模型看到生成的 [`gstar_station_data` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-gstar-tool-spatial-query)。它提供可选 AOI id 与受限实体数量；局点身份不会成为模型可控参数。
 
 #### Token 影响
 

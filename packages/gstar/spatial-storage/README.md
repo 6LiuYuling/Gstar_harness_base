@@ -8,6 +8,17 @@ Writes are serialized through a Provider-owned operation chain and complete befo
 
 `locate()` uses the injected DSH `ctx.web` seam to try Nominatim and then Photon, removes a trailing Chinese station suffix before falling back to the exact title, validates the returned WGS84 coordinate, and persists it through the same spatial write path. Nominatim requests simplified GeoJSON geometry; a valid Polygon/MultiPolygon becomes the station boundary, with Nominatim's bounding box as a rectangle fallback. Photon remains a marker-only availability fallback. Transport, HTTP, and malformed-payload failures fall through to the next Host provider and retain their cause chain for Remote diagnostics. The browser never performs geocoding requests directly.
 
+`refreshAois()` builds a bounded Overpass query from the persisted station boundary, or from a configured marker radius when no boundary is available. It accepts closed ways and multipolygon relations, maps OSM tags into the seven GSTAR AOI categories, publishes a normalized entity per OSM feature, and records the OSM object URL, retrieval time, ODbL license, and SHA-256 checksum. `listSources()` publishes Overpass as a direct source and the National Public Data Resource Registration Platform, National Government Service Platform, National Enterprise Credit Information Publicity System, National Financial Regulatory Administration license query, Ministry of Education institution list, and National Health Commission data query as authoritative references.
+
+## Configuration
+
+| Field | Default | Meaning |
+|---|---:|---|
+| `overpassEndpoint` | `https://overpass-api.de/api/interpreter` | Direct AOI acquisition endpoint. |
+| `overpassTimeoutSeconds` | `120` | Server-side Overpass timeout. |
+| `overpassMaxElements` | `2000` | Maximum requested and published elements per refresh. |
+| `fallbackRadiusMeters` | `15000` | Marker search radius when no station boundary is available. |
+
 ## Model Experience
 
 None, as the Provider contributes no model-visible input.
@@ -21,4 +32,5 @@ None.
 - The current KV record stores only the latest spatial projection and does not retain data-version history.
 - Large entity collections remain inline with each station record; object storage and indexed spatial databases are future Providers behind the same Service Definition.
 - Authorization is limited to durable station membership rather than an authenticated user policy.
-- Public Nominatim and Photon availability and usage policies remain external deployment dependencies; production deployments can replace this Provider behind the same Service Definition.
+- Public Nominatim, Photon, and Overpass availability and usage policies remain external deployment dependencies; production deployments can replace this Provider behind the same Service Definition.
+- Official reference sources have heterogeneous access controls and response formats; this Provider catalogs them for validation but does not represent them as directly ingested records.

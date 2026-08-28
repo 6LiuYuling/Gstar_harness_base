@@ -27,7 +27,10 @@ type GstarViewActions = {
   closeDetails: (draft: GstarViewState) => void
 }
 
-/** Create the root store used by the GSTAR shell and its `ctx.layout` provider. */
+/**
+ * Create the root store used by the GSTAR shell and its `ctx.layout` provider.
+ * @returns the root GSTAR state and bound-action store handle.
+ */
 export function createGstarStore(): EngineStoreHandle<GstarViewState, GstarViewActions> {
   return defineStore({
     init: (): GstarViewState => ({

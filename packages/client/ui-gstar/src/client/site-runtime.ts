@@ -61,7 +61,11 @@ export class GstarSiteRuntime {
     return result.value
   }
 
-  /** Remove station classification and refresh the authoritative list. */
+  /**
+   * Remove station classification and refresh the authoritative list.
+   * @param request - Station classification to remove.
+   * @returns the updated station snapshot.
+   */
   async delete(request: GstarSiteDeleteRequest): Promise<GstarSiteSnapshot> {
     const result = await this.remote.delete(request)
     if (!result.ok) {

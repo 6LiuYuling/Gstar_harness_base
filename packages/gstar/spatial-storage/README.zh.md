@@ -8,6 +8,17 @@
 
 `locate()` 通过注入的 DSH `ctx.web` 能力依次尝试 Nominatim 与 Photon，优先去掉中文「局点/站点」后缀并在未命中时回退到完整名称，校验返回的 WGS84 坐标，并通过同一空间写入路径持久化。Nominatim 会请求简化 GeoJSON 几何；合法 Polygon/MultiPolygon 成为局点边界，并以 Nominatim bounding box 作为矩形后备。Photon 继续作为只返回标记的可用性后备。传输、HTTP 与异常载荷失败会继续尝试下一个 Host 提供方，并保留原因链用于 Remote 诊断。浏览器不会直接发起地理编码请求。
 
+`refreshAois()` 根据已持久化局点边界构建有界 Overpass 查询；没有边界时使用配置的点位半径。它接收闭合 way 与 multipolygon relation，把 OSM 标签映射到七类 GSTAR AOI，为每个 OSM 要素发布一条规范化实体，并记录 OSM 对象链接、获取时间、ODbL 许可和 SHA-256 校验和。`listSources()` 把 Overpass 发布为直接采集源，并把国家公共数据资源登记平台、国家政务服务平台、国家企业信用信息公示系统、国家金融监督管理总局许可证查询、教育部高校名单和国家卫生健康委员会数据查询发布为权威参考源。
+
+## 配置
+
+| 字段 | 默认值 | 含义 |
+|---|---:|---|
+| `overpassEndpoint` | `https://overpass-api.de/api/interpreter` | AOI 直接采集端点。 |
+| `overpassTimeoutSeconds` | `120` | Overpass 服务端查询超时。 |
+| `overpassMaxElements` | `2000` | 每次刷新请求并发布的最大要素数。 |
+| `fallbackRadiusMeters` | `15000` | 局点没有边界时使用的点位搜索半径。 |
+
 ## 模型体验
 
 无，因为该 Provider 不贡献模型可见输入。
@@ -21,4 +32,5 @@
 - 当前 KV 记录只保存最新空间投影，不保留数据版本历史。
 - 大型实体集合仍内嵌在局点记录中；对象存储和索引化空间数据库将作为同一 Service Definition 的后续 Provider。
 - 授权目前只基于持久化局点成员关系，而不是已认证用户策略。
-- 公共 Nominatim 与 Photon 的可用性和使用政策仍是外部部署依赖；生产部署可在同一 Service Definition 后替换 Provider。
+- 公共 Nominatim、Photon 与 Overpass 的可用性和使用政策仍是外部部署依赖；生产部署可在同一 Service Definition 后替换 Provider。
+- 官方参考源具有不同的访问控制与响应格式；本 Provider 将其编入校验目录，但不把它们表示为已直接采集的记录。

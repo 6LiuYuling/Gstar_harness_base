@@ -33,6 +33,9 @@ export interface GstarMultiPolygonGeometry {
 /** AOI geometry accepted by the GSTAR globe. */
 export type GstarAoiGeometry = GstarPolygonGeometry | GstarMultiPolygonGeometry
 
+/** Product AOI categories available in the station map layer toolbar. */
+export type GstarAoiCategory = '政' | '企' | '金融' | '教育' | '医疗' | '商场' | '居民区'
+
 /** Scalar value that may cross the Host/Client Remote and render in an entity field table. */
 export type GstarEntityFieldValue = string | number | boolean | null
 
@@ -69,7 +72,7 @@ export interface GstarAoiSnapshot {
   /** Human-readable AOI name. */
   readonly name: string
   /** Product category used for map styling and filtering. */
-  readonly category: string
+  readonly category: GstarAoiCategory
   /** WGS84 polygon or multi-polygon geometry. */
   readonly geometry: GstarAoiGeometry
   /** Entities currently associated with the AOI. */
@@ -78,6 +81,27 @@ export interface GstarAoiSnapshot {
   readonly provenance: readonly GstarProvenanceSnapshot[]
   /** Successful pipeline publication instant in ISO-8601 form. */
   readonly updatedAt: string
+}
+
+/** How a public source currently participates in the GSTAR acquisition pipeline. */
+export type GstarDataSourceAccessMode = 'direct' | 'reference'
+
+/** One public source available for acquisition or authoritative cross-checking. */
+export interface GstarDataSourceSnapshot {
+  /** Stable source identity used by provenance and source configuration. */
+  readonly id: string
+  /** Human-readable dataset or platform name. */
+  readonly name: string
+  /** Organization responsible for publishing the source. */
+  readonly publisher: string
+  /** Public entry point for the source. */
+  readonly url: string
+  /** AOI categories for which the source supplies or verifies data. */
+  readonly categories: readonly GstarAoiCategory[]
+  /** `direct` sources are fetched by GSTAR; `reference` sources support validation and enrichment. */
+  readonly accessMode: GstarDataSourceAccessMode
+  /** Public data license when the publisher declares one. */
+  readonly license?: string
 }
 
 /** Complete spatial projection for one GSTAR station Workspace. */
@@ -112,4 +136,10 @@ export interface GstarSpatialLocateRequest {
   readonly workspaceId: WorkspaceId
   /** User-supplied station name; the Provider may retry without a trailing station suffix. */
   readonly query: string
+}
+
+/** Fetch and replace one station's AOIs through the active acquisition Provider. */
+export interface GstarSpatialRefreshAoisRequest {
+  /** Owning station Workspace identity. */
+  readonly workspaceId: WorkspaceId
 }

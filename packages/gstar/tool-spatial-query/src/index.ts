@@ -13,6 +13,7 @@ export const inject = ['tools', 'gstarSites', 'gstarSpatial']
 
 /** Default and maximum entities returned for one AOI query. */
 export const DEFAULT_ENTITY_LIMIT = 50
+/** Hard upper bound for entities published by one focused AOI query. */
 export const MAX_ENTITY_LIMIT = 200
 
 /** Arguments accepted by the station-data tool. */
@@ -53,7 +54,13 @@ function aoiSummary(aoi: GstarAoiSnapshot) {
   }
 }
 
-/** Query current-station Host data for the tool execute path and focused tests. */
+/**
+ * Query current-station Host data for the tool execute path and focused tests.
+ * @param ctx - Host capabilities used to resolve station membership and spatial data.
+ * @param args - Optional AOI selection and bounded entity limit.
+ * @param agent - Calling agent whose immutable Session cwd defines the station.
+ * @returns formatted JSON safe to return as a model tool result.
+ */
 export async function queryStationData(
   ctx: Context,
   args: GstarStationDataArgs,

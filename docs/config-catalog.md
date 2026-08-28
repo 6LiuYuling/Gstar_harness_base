@@ -704,6 +704,28 @@ export interface Config {
 
 Source: [`packages/goal/goal/src/index.ts:116`](../packages/goal/goal/src/index.ts)
 
+<a id="deepseek-aidsh-gstar-spatial-storage"></a>
+
+## `@deepseek-ai/dsh-gstar-spatial-storage`
+
+Requires: `storageDomain` · `gstarSites` · `web`
+
+```ts config-catalog
+/** Provider configuration for bounded public OpenStreetMap acquisition. */
+export interface Config {
+  /** Overpass interpreter endpoint used for direct AOI acquisition. */
+  overpassEndpoint?: string
+  /** Overpass server-side query timeout in seconds. */
+  overpassTimeoutSeconds?: number
+  /** Maximum elements requested and published by one refresh. */
+  overpassMaxElements?: number
+  /** Search radius used when a station has a marker but no boundary. */
+  fallbackRadiusMeters?: number
+}
+```
+
+Source: [`packages/gstar/spatial-storage/src/index.ts:39`](../packages/gstar/spatial-storage/src/index.ts)
+
 <a id="deepseek-aidsh-headless"></a>
 
 ## `@deepseek-ai/dsh-headless`
@@ -3206,6 +3228,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-directory-picker-browse` ([`packages/client/ui-directory-picker-browse/src/index.ts`](../packages/client/ui-directory-picker-browse/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-directory-picker-native` ([`packages/client/ui-directory-picker-native/src/index.ts`](../packages/client/ui-directory-picker-native/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-goal` ([`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-gstar` ([`packages/client/ui-gstar/src/index.ts`](../packages/client/ui-gstar/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-input-trigger` ([`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-jobs` ([`packages/client/ui-jobs/src/index.ts`](../packages/client/ui-jobs/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-layout` ([`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts))
@@ -3237,6 +3260,10 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-fs-e2b` — requires `e2b` ([`packages/e2b/fs-e2b/src/index.ts`](../packages/e2b/fs-e2b/src/index.ts))
 - `@deepseek-ai/dsh-fs-observation-policy` ([`packages/fs/fs-observation-policy/src/index.ts`](../packages/fs/fs-observation-policy/src/index.ts))
 - `@deepseek-ai/dsh-goal-round-driver` — requires `agents` · `goals` · `sessions` ([`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts))
+- `@deepseek-ai/dsh-gstar-cesium-assets` — requires `webServer` ([`packages/gstar/cesium-assets/src/index.ts`](../packages/gstar/cesium-assets/src/index.ts))
+- `@deepseek-ai/dsh-gstar-client-remotes` ([`packages/gstar/client-remotes/src/index.ts`](../packages/gstar/client-remotes/src/index.ts))
+- `@deepseek-ai/dsh-gstar-site-workspace` — requires `workspaceRegistry` · `storageDomain` ([`packages/gstar/site-workspace/src/index.ts`](../packages/gstar/site-workspace/src/index.ts))
+- `@deepseek-ai/dsh-gstar-tool-spatial-query` — requires `tools` · `gstarSites` · `gstarSpatial` ([`packages/gstar/tool-spatial-query/src/index.ts`](../packages/gstar/tool-spatial-query/src/index.ts))
 - `@deepseek-ai/dsh-host-directory-picker-auto` — requires `webServer` · `loader` ([`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts))
 - `@deepseek-ai/dsh-host-directory-picker-native` ([`packages/host/directory-picker-native/src/index.ts`](../packages/host/directory-picker-native/src/index.ts))
 - `@deepseek-ai/dsh-host-plugin-inventory` — requires `loader` ([`packages/host/plugin-inventory/src/index.ts`](../packages/host/plugin-inventory/src/index.ts))
@@ -3270,6 +3297,8 @@ Abstract service classes — a deployment loads a concrete implementation packag
 - `@deepseek-ai/dsh-credentials` — abstract `CredentialProvider` ([`packages/credentials/credentials/src/index.ts`](../packages/credentials/credentials/src/index.ts))
 - `@deepseek-ai/dsh-file-reference` — abstract `FileReferenceService` ([`packages/context/file-reference/src/index.ts`](../packages/context/file-reference/src/index.ts))
 - `@deepseek-ai/dsh-fs` — abstract `FileSystem` ([`packages/fs/fs/src/index.ts`](../packages/fs/fs/src/index.ts))
+- `@deepseek-ai/dsh-gstar-site` — abstract `GstarSiteService` ([`packages/gstar/site/src/index.ts`](../packages/gstar/site/src/index.ts))
+- `@deepseek-ai/dsh-gstar-spatial` — abstract `GstarSpatialService` ([`packages/gstar/spatial/src/index.ts`](../packages/gstar/spatial/src/index.ts))
 - `@deepseek-ai/dsh-host-directory-picker` — abstract `DirectoryPicker` ([`packages/host/directory-picker/src/index.ts`](../packages/host/directory-picker/src/index.ts))
 - `@deepseek-ai/dsh-jobs` — abstract `JobRegistry` ([`packages/jobs/jobs/src/index.ts`](../packages/jobs/jobs/src/index.ts))
 - `@deepseek-ai/dsh-sandbox` — abstract `SandboxProvider` ([`packages/sandbox/sandbox/src/index.ts`](../packages/sandbox/sandbox/src/index.ts))
@@ -3298,6 +3327,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 - `@deepseek-ai/dsh-client-web` ([`packages/client/web/src/index.ts`](../packages/client/web/src/index.ts))
 - `@deepseek-ai/dsh-cmdline` ([`packages/boot/cmdline/src/index.ts`](../packages/boot/cmdline/src/index.ts))
 - `@deepseek-ai/dsh-code-runtime-python` ([`packages/code-runtime/code-runtime-python/src/index.ts`](../packages/code-runtime/code-runtime-python/src/index.ts))
+- `@deepseek-ai/dsh-gstar-app` ([`packages/bundle/gstar-app/src/index.ts`](../packages/bundle/gstar-app/src/index.ts))
 - `@deepseek-ai/dsh-home-paths` ([`packages/util/home-paths/src/index.ts`](../packages/util/home-paths/src/index.ts))
 - `@deepseek-ai/dsh-hook-protocol` ([`packages/hooks/hook-protocol/src/index.ts`](../packages/hooks/hook-protocol/src/index.ts))
 - `@deepseek-ai/dsh-launch-environment` ([`packages/util/launch-environment/src/index.ts`](../packages/util/launch-environment/src/index.ts))

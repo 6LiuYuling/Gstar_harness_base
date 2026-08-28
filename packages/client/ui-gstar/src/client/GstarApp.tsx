@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
   HostObservable, PropsHooks, PropsRenderSlots, PropsRuntime, PropsStore,
@@ -12,15 +12,20 @@ import type {
   GstarSiteCreateRequest, GstarSiteDeleteRequest, GstarSiteSnapshot,
 } from '@deepseek-ai/dsh-gstar-site/types'
 import type {
-  GstarAoiSnapshot, GstarSpatialLocateRequest, GstarSpatialPatchRequest, GstarSpatialSnapshot,
+  GstarAoiCategory, GstarAoiSnapshot, GstarDataSourceSnapshot, GstarSpatialLocateRequest,
+  GstarSpatialPatchRequest, GstarSpatialRefreshAoisRequest, GstarSpatialSnapshot,
 } from '@deepseek-ai/dsh-gstar-spatial/types'
 import { CesiumGlobe, type GstarMapMode } from './CesiumGlobe.tsx'
 import type { GstarSiteListState } from './site-runtime.ts'
-import type { GstarSpatialListState } from './spatial-runtime.ts'
+import type { GstarSourceListState, GstarSpatialListState } from './spatial-runtime.ts'
 import type { createGstarStore } from './stores.ts'
 import css from './GstarApp.module.css'
 
 type GstarRootChildSlot = DirectoryFlowSlotName | 'conversation' | 'details' | 'shell.overlay'
+
+const AOI_CATEGORIES: readonly GstarAoiCategory[] = [
+  '政', '企', '金融', '教育', '医疗', '商场', '居民区',
+]
 
 /** GSTAR business actions and live projections supplied by the registering Client plugin. */
 export interface GstarAppInjected {
@@ -34,6 +39,8 @@ export interface GstarAppInjected {
   patchSpatial(request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot>
   /** Resolve the user-supplied station name on the Host and persist its marker. */
   locateSpatial(request: GstarSpatialLocateRequest): Promise<GstarSpatialSnapshot>
+  /** Fetch and persist the station's current OpenStreetMap AOIs on the Host. */
+  refreshAois(request: GstarSpatialRefreshAoisRequest): Promise<GstarSpatialSnapshot>
   /** Framework-bound Client hooks supplied by the registering plugin. */
   hooks: {
     /** Whether the composed DSH directory-picker currently occupies GSTAR's flow hole. */
@@ -42,6 +49,8 @@ export interface GstarAppInjected {
     sites: HostObservable<GstarSiteListState>
     /** Host-authoritative station locations, AOIs, entities, and provenance. */
     spatial: HostObservable<GstarSpatialListState>
+    /** Provider-owned direct acquisition and authoritative reference sources. */
+    sources: HostObservable<GstarSourceListState>
   }
 }
 
@@ -106,18 +115,49 @@ function AoiInspector({ aoi, onClose }: { readonly aoi: GstarAoiSnapshot; readon
   )
 }
 
+/** Public source catalog distinguishes direct ingestion from official cross-check references. */
+function DataSourcePanel({ sources, onClose }: {
+  readonly sources: readonly GstarDataSourceSnapshot[]
+  readonly onClose: () => void
+}) {
+  return (
+    <aside className={css.sourcePanel} aria-label="公开数据源">
+      <header>
+        <div><span>PUBLIC SOURCES</span><h2>公开可信数据源</h2></div>
+        <button type="button" onClick={onClose} aria-label="关闭公开数据源">×</button>
+      </header>
+      <p>“直接采集”会进入 GSTAR AOI 快照；“官方校验”用于后续实体核验与字段补充。</p>
+      <ul>
+        {sources.map(source => (
+          <li key={source.id}>
+            <div>
+              <strong>{source.name}</strong>
+              <span data-mode={source.accessMode}>
+                {source.accessMode === 'direct' ? '直接采集' : '官方校验'}
+              </span>
+            </div>
+            <small>{source.publisher} · {source.categories.join(' / ')}</small>
+            <a href={source.url} target="_blank" rel="noreferrer">打开公开平台</a>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  )
+}
+
 /**
  * Render the three-column GSTAR product shell over Host projections and standard DSH conversation slots.
  * @param props - Framework-bound root props.
  * @returns the GSTAR application shell.
  */
 export function GstarApp({
-  actions, createSite, deleteSite, locateSpatial, openSite, renderSlot,
-  useDirectoryFlow, useSites, useSpatial, useStore,
+  actions, createSite, deleteSite, locateSpatial, openSite, refreshAois, renderSlot,
+  useDirectoryFlow, useSites, useSources, useSpatial, useStore,
 }: GstarAppProps) {
   const view = useStore(state => state)
   const siteState = useSites(state => state)
   const spatialState = useSpatial(state => state)
+  const sourceState = useSources(state => state)
   const directoryFlowAvailable = useDirectoryFlow(occupied => occupied)
   const [createOpen, setCreateOpen] = useState(false)
   const [flowOpen, setFlowOpen] = useState(false)
@@ -130,6 +170,16 @@ export function GstarApp({
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string>()
   const [mapMode, setMapMode] = useState<GstarMapMode>('3d')
+  const [visibleCategories, setVisibleCategories] = useState<ReadonlySet<GstarAoiCategory>>(
+    () => new Set(AOI_CATEGORIES),
+  )
+  const [sourceOpen, setSourceOpen] = useState(false)
+  const [refreshingSiteId, setRefreshingSiteId] = useState<WorkspaceId>()
+  const [aoiRefreshError, setAoiRefreshError] = useState<{
+    readonly workspaceId: WorkspaceId
+    readonly message: string
+  }>()
+  const autoRefreshSiteRef = useRef<WorkspaceId>()
 
   useEffect(() => {
     if (flowOpen && !directoryFlowAvailable) setFlowOpen(false)
@@ -151,6 +201,42 @@ export function GstarApp({
   const selectedSite = siteState.items.find(site => site.workspaceId === view.selectedSiteId)
   const selectedSpatial = selectedSite === undefined ? undefined : spatialById.get(selectedSite.workspaceId)
   const selectedAoi = selectedSpatial?.aois.find(aoi => aoi.id === view.selectedAoiId)
+  const allCategoriesSelected = visibleCategories.size === AOI_CATEGORIES.length
+  const visibleAoiCount = selectedSpatial?.aois.filter(aoi => visibleCategories.has(aoi.category)).length ?? 0
+  const categoryCounts = useMemo(() => {
+    const counts: Record<GstarAoiCategory, number> = {
+      政: 0, 企: 0, 金融: 0, 教育: 0, 医疗: 0, 商场: 0, 居民区: 0,
+    }
+    selectedSpatial?.aois.forEach((aoi) => { counts[aoi.category] += 1 })
+    return counts
+  }, [selectedSpatial])
+
+  const refreshStationAois = useCallback(async (workspaceId: WorkspaceId) => {
+    setRefreshingSiteId(workspaceId)
+    setAoiRefreshError(undefined)
+    try {
+      await refreshAois({ workspaceId })
+    } catch (error) {
+      setAoiRefreshError({
+        workspaceId,
+        message: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setRefreshingSiteId(current => current === workspaceId ? undefined : current)
+    }
+  }, [refreshAois])
+
+  useEffect(() => {
+    if (selectedSite === undefined || selectedSpatial === undefined || selectedSpatial.aois.length > 0
+      || (selectedSpatial.boundary === undefined && selectedSpatial.location === undefined)
+      || autoRefreshSiteRef.current === selectedSite.workspaceId) return
+    autoRefreshSiteRef.current = selectedSite.workspaceId
+    void refreshStationAois(selectedSite.workspaceId)
+  }, [refreshStationAois, selectedSite, selectedSpatial])
+
+  useEffect(() => {
+    if (selectedAoi !== undefined && !visibleCategories.has(selectedAoi.category)) actions.closeAoi()
+  }, [actions, selectedAoi, visibleCategories])
 
   const chooseSite = (workspaceId: WorkspaceId) => {
     actions.selectSite(workspaceId)
@@ -208,13 +294,12 @@ export function GstarApp({
     )
   }
 
-  const confirmDeleteSite = async () => {
-    if (deleteTarget === undefined) return
+  const confirmDeleteSite = async (target: GstarSiteSnapshot) => {
     setDeleting(true)
     setDeleteError(undefined)
     try {
-      await deleteSite({ workspaceId: deleteTarget.workspaceId })
-      if (view.selectedSiteId === deleteTarget.workspaceId) actions.clearSelection()
+      await deleteSite({ workspaceId: target.workspaceId })
+      if (view.selectedSiteId === target.workspaceId) actions.clearSelection()
       setDeleteTarget(undefined)
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : String(error))
@@ -356,6 +441,7 @@ export function GstarApp({
             sites={siteState.items}
             spatial={spatialState.items}
             mode={mapMode}
+            visibleAoiCategories={[...visibleCategories]}
             focusRevision={view.focusRevision}
             {...(view.selectedSiteId === undefined ? {} : { selectedSiteId: view.selectedSiteId })}
             {...(view.selectedAoiId === undefined ? {} : { selectedAoiId: view.selectedAoiId })}
@@ -365,34 +451,85 @@ export function GstarApp({
               actions.selectAoi(aoiId)
             }}
           />
+          {selectedSite === undefined ? null : (
+            <div className={css.aoiToolbar}>
+              <div className={css.aoiFilters} role="group" aria-label="AOI 类型筛选">
+                <span>AOI 图层</span>
+                {AOI_CATEGORIES.map(category => (
+                  <button
+                    type="button"
+                    key={category}
+                    aria-pressed={visibleCategories.has(category)}
+                    onClick={() => {
+                      setVisibleCategories((current) => {
+                        const next = new Set(current)
+                        if (next.has(category)) next.delete(category)
+                        else next.add(category)
+                        return next
+                      })
+                    }}
+                  >
+                    {category}<small>{categoryCounts[category]}</small>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  aria-pressed={allCategoriesSelected}
+                  onClick={() => {
+                    setVisibleCategories(allCategoriesSelected ? new Set() : new Set(AOI_CATEGORIES))
+                  }}
+                >
+                  全选<small>{selectedSpatial?.aois.length ?? 0}</small>
+                </button>
+              </div>
+              <div className={css.mapActions}>
+                <button
+                  type="button"
+                  disabled={refreshingSiteId === selectedSite.workspaceId
+                    || (selectedSpatial?.boundary === undefined && selectedSpatial?.location === undefined)}
+                  onClick={() => { void refreshStationAois(selectedSite.workspaceId) }}
+                >
+                  {refreshingSiteId === selectedSite.workspaceId ? '同步 OSM…' : '更新 OSM AOI'}
+                </button>
+                <button
+                  type="button"
+                  aria-expanded={sourceOpen}
+                  onClick={() => { setSourceOpen(open => !open) }}
+                >
+                  数据源 {sourceState.items.length}
+                </button>
+                <div className={css.mapModeSwitch} role="group" aria-label="地图视图">
+                  <button
+                    type="button"
+                    aria-pressed={mapMode === '3d'}
+                    onClick={() => { setMapMode('3d') }}
+                  >
+                    3D
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={mapMode === '2d'}
+                    onClick={() => { setMapMode('2d') }}
+                  >
+                    2D
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <div
             className={css.mapTitle}
-            data-with-mode-switch={selectedSite === undefined ? undefined : ''}
+            data-with-toolbar={selectedSite === undefined ? undefined : ''}
           >
             <span>CESIUM {mapMode.toUpperCase()} VIEW</span>
             <strong>{selectedSite?.title ?? '全球局点总览'}</strong>
             <small>
-              {selectedSpatial?.aois.length ?? 0} 个已发布 AOI ·
+              {visibleAoiCount} / {selectedSpatial?.aois.length ?? 0} 个 AOI 显示 ·
               {selectedSpatial?.boundary === undefined ? ' 局点范围待获取' : ' 局点范围已标注'}
             </small>
           </div>
-          {selectedSite === undefined ? null : (
-            <div className={css.mapModeSwitch} role="group" aria-label="地图视图">
-              <button
-                type="button"
-                aria-pressed={mapMode === '3d'}
-                onClick={() => { setMapMode('3d') }}
-              >
-                3D
-              </button>
-              <button
-                type="button"
-                aria-pressed={mapMode === '2d'}
-                onClick={() => { setMapMode('2d') }}
-              >
-                2D
-              </button>
-            </div>
+          {!sourceOpen || selectedSite === undefined ? null : (
+            <DataSourcePanel sources={sourceState.items} onClose={() => { setSourceOpen(false) }} />
           )}
           {view.locatingSiteId === undefined ? null : (
             <div className={css.locatingNotice} role="status">
@@ -404,6 +541,12 @@ export function GstarApp({
             <p className={css.mapError} role="alert">空间数据同步失败：{spatialState.error}</p>
           ) : null}
           {spatialError === undefined ? null : <p className={css.mapError} role="alert">自动定位提示：{spatialError}</p>}
+          {aoiRefreshError === undefined || aoiRefreshError.workspaceId !== selectedSite?.workspaceId ? null : (
+            <p className={css.mapError} role="alert">OSM AOI 同步失败：{aoiRefreshError.message}</p>
+          )}
+          {sourceState.phase !== 'error' ? null : (
+            <p className={css.mapError} role="alert">公开数据源同步失败：{sourceState.error}</p>
+          )}
           {selectedAoi === undefined ? null : (
             <AoiInspector aoi={selectedAoi} onClose={() => { actions.closeAoi() }} />
           )}
@@ -411,7 +554,7 @@ export function GstarApp({
             <span><i data-kind="site" />局点</span>
             <span><i data-kind="aoi" />AOI</span>
             <span>点击局点缩放 · 点击 AOI 查看实体与溯源</span>
-            <span>定位数据 © OpenStreetMap contributors / Nominatim / Photon</span>
+            <span>AOI © OpenStreetMap contributors · ODbL 1.0</span>
           </div>
         </section>
 
@@ -452,7 +595,7 @@ export function GstarApp({
               >
                 取消
               </button>
-              <button type="button" disabled={deleting} onClick={() => { void confirmDeleteSite() }}>
+              <button type="button" disabled={deleting} onClick={() => { void confirmDeleteSite(deleteTarget) }}>
                 {deleting ? '正在删除…' : '确认删除局点'}
               </button>
             </div>

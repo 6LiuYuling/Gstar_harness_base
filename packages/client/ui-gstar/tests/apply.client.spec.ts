@@ -43,15 +43,27 @@ async function setup(options: { readonly siteList?: unknown; readonly spatialLis
   const locateSpatial = vi.fn().mockResolvedValue({
     ok: true, value: { workspaceId: SITE.workspaceId, aois: [], location: { longitude: 113, latitude: 23 } },
   })
+  const refreshAois = vi.fn().mockResolvedValue({
+    ok: true, value: { workspaceId: SITE.workspaceId, aois: [], location: { longitude: 113, latitude: 23 } },
+  })
+  const listSources = vi.fn().mockResolvedValue({
+    ok: true,
+    value: [{
+      id: 'osm-overpass', name: 'OpenStreetMap / Overpass API', publisher: 'OpenStreetMap contributors',
+      url: 'https://overpass-api.de/api/interpreter', categories: ['政'], accessMode: 'direct',
+    }],
+  })
   ctx.provide('remote.gstarSites', { list: listSites, create: createSite, delete: deleteSite })
-  ctx.provide('remote.gstarSpatial', { list: listSpatial, patch: patchSpatial, locate: locateSpatial })
+  ctx.provide('remote.gstarSpatial', {
+    list: listSpatial, listSources, patch: patchSpatial, locate: locateSpatial, refreshAois,
+  })
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
   const entry = ctx.slots.entries('root')[0]!
   const injected = (entry.inject as unknown as (actions: typeof ACTIONS) => GstarAppInjected)(ACTIONS)
   return {
     ctx, fiber, entry, injected, startSession, clearSession, listSites, createSite, deleteSite,
-    listSpatial, patchSpatial, locateSpatial,
+    listSpatial, listSources, patchSpatial, locateSpatial, refreshAois,
   }
 }
 
@@ -74,6 +86,9 @@ describe('ui-gstar client apply', () => {
       expect(subject.injected.hooks.spatial.getSnapshot()).toEqual({
         items: [{ workspaceId: SITE.workspaceId, aois: [] }], phase: 'ready',
       })
+      expect(subject.injected.hooks.sources.getSnapshot()).toMatchObject({
+        items: [{ id: 'osm-overpass', accessMode: 'direct' }], phase: 'ready',
+      })
     })
     subject.injected.openSite(SITE.workspaceId as never)
     expect(subject.clearSession).toHaveBeenCalledOnce()
@@ -86,17 +101,21 @@ describe('ui-gstar client apply', () => {
   it('uses the composed DSH directory-flow hole for station creation', async () => {
     const subject = await setup()
     expect(subject.injected.hooks.directoryFlow.getSnapshot()).toBe(false)
+    const listener = vi.fn()
+    const unsubscribe = subject.injected.hooks.directoryFlow.subscribe(listener)
     const disposeFlow = subject.ctx.slots.register(
       { name: 'conversation.hero.workspace.directoryFlow' },
       () => null,
     )
     expect(subject.injected.hooks.directoryFlow.getSnapshot()).toBe(true)
+    await vi.waitFor(() => { expect(listener).toHaveBeenCalled() })
 
     await expect(subject.injected.createSite({ path: SITE.path, title: SITE.title })).resolves.toEqual(SITE)
     expect(subject.createSite).toHaveBeenCalledWith({ path: SITE.path, title: SITE.title })
     expect(subject.listSites).toHaveBeenCalledTimes(2)
     expect(subject.listSpatial).toHaveBeenCalledTimes(2)
     disposeFlow()
+    unsubscribe()
   })
 
   it('deletes station membership through the Host and refreshes both projections', async () => {
@@ -123,6 +142,13 @@ describe('ui-gstar client apply', () => {
     })
     expect(subject.locateSpatial).toHaveBeenCalledWith(locateRequest)
     expect(subject.listSpatial).toHaveBeenCalledTimes(3)
+
+    const refreshRequest = { workspaceId: SITE.workspaceId as never }
+    await expect(subject.injected.refreshAois(refreshRequest)).resolves.toMatchObject({
+      workspaceId: SITE.workspaceId,
+    })
+    expect(subject.refreshAois).toHaveBeenCalledWith(refreshRequest)
+    expect(subject.listSpatial).toHaveBeenCalledTimes(4)
   })
 
   it('surfaces typed station and spatial Remote failures independently', async () => {

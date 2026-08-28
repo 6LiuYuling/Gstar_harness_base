@@ -3,7 +3,7 @@ import * as Cesium from 'cesium'
 import type { Cartesian2, Entity, ScreenSpaceEventHandler, Viewer } from 'cesium'
 import type { WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
-  GstarLinearRing, GstarSpatialSnapshot,
+  GstarAoiCategory, GstarLinearRing, GstarSpatialSnapshot,
 } from '@deepseek-ai/dsh-gstar-spatial/types'
 import type { GstarSiteSnapshot } from '@deepseek-ai/dsh-gstar-site/types'
 import css from './CesiumGlobe.module.css'
@@ -33,6 +33,7 @@ export interface CesiumGlobeProps {
   readonly sites: readonly GstarSiteSnapshot[]
   readonly spatial: readonly GstarSpatialSnapshot[]
   readonly mode: GstarMapMode
+  readonly visibleAoiCategories: readonly GstarAoiCategory[]
   readonly selectedSiteId?: WorkspaceId
   readonly selectedAoiId?: string
   /** Monotonic selection request, allowing a repeated click to refit the camera. */
@@ -53,6 +54,7 @@ function ringPositions(Cesium: CesiumModule, ring: GstarLinearRing) {
 /** Build a Cesium hierarchy including polygon holes. */
 function hierarchy(Cesium: CesiumModule, rings: readonly GstarLinearRing[]) {
   const outer = rings[0]
+  /* v8 ignore next -- persisted AOI schemas reject polygons without an outer ring. */
   if (outer === undefined) throw new Error('GSTAR AOI polygon requires an outer ring')
   return new Cesium.PolygonHierarchy(
     ringPositions(Cesium, outer),
@@ -60,17 +62,10 @@ function hierarchy(Cesium: CesiumModule, rings: readonly GstarLinearRing[]) {
   )
 }
 
-/** Stable category bucket for the three theme-backed AOI colors. */
-function categoryBucket(category: string): 0 | 1 | 2 {
-  let hash = 0
-  for (const char of category) hash = (hash * 31 + (char.codePointAt(0) ?? 0)) >>> 0
-  return (hash % 3) as 0 | 1 | 2
-}
-
 /** Read a theme-backed CSS color for canvas rendering. */
 function canvasColor(Cesium: CesiumModule, root: HTMLElement, name: string, fallback: import('cesium').Color) {
   const value = getComputedStyle(root).getPropertyValue(name).trim()
-  return Cesium.Color.fromCssColorString(value) ?? fallback
+  return value.length === 0 ? fallback : Cesium.Color.fromCssColorString(value)
 }
 
 /** Load Cesium's global widget sheet through the DSH Host route. */
@@ -98,8 +93,8 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
   const [error, setError] = useState<string>()
 
   useEffect(() => {
-    const container = containerRef.current
-    if (container === null) return
+    // React invokes this effect only after committing the element carrying the ref.
+    const container = containerRef.current as HTMLDivElement
     const disposeStyles = ensureCesiumStyles()
     ;(window as typeof window & { CESIUM_BASE_URL?: string }).CESIUM_BASE_URL = CESIUM_ASSET_BASE
     ;(Cesium.buildModuleUrl as CesiumBuildModuleUrl).setBaseUrl(CESIUM_ASSET_BASE)
@@ -134,9 +129,7 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
         maximumRenderTimeChange: Number.POSITIVE_INFINITY,
       })
       viewer = createdViewer
-      if (createdViewer.scene.globe !== undefined) {
-        createdViewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#050a10') ?? Cesium.Color.BLACK
-      }
+      createdViewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#050a10')
       const picks = new Map<string, GlobePick>()
       const createdHandler = new Cesium.ScreenSpaceEventHandler(createdViewer.scene.canvas)
       handler = createdHandler
@@ -175,18 +168,23 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
     const { Cesium, viewer, picks } = runtime
     viewer.entities.removeAll()
     picks.clear()
-    const root = containerRef.current
-    if (root === null) return
-    const siteColor = canvasColor(Cesium, root.parentElement ?? root, '--gstar-map-site', Cesium.Color.CYAN)
+    // The canvas is always nested by the component root before runtime publication.
+    const root = containerRef.current as HTMLDivElement
+    const colorRoot = root.parentElement as HTMLElement
+    const siteColor = canvasColor(Cesium, colorRoot, '--gstar-map-site', Cesium.Color.CYAN)
     const outlineColor = canvasColor(
-      Cesium, root.parentElement ?? root, '--gstar-map-site-outline', Cesium.Color.BLACK,
+      Cesium, colorRoot, '--gstar-map-site-outline', Cesium.Color.BLACK,
     )
-    const labelColor = canvasColor(Cesium, root.parentElement ?? root, '--gstar-map-label', Cesium.Color.WHITE)
-    const aoiColors = [
-      canvasColor(Cesium, root.parentElement ?? root, '--gstar-map-aoi-1', Cesium.Color.LIME),
-      canvasColor(Cesium, root.parentElement ?? root, '--gstar-map-aoi-2', Cesium.Color.ORANGE),
-      canvasColor(Cesium, root.parentElement ?? root, '--gstar-map-aoi-3', Cesium.Color.CYAN),
-    ] as const
+    const labelColor = canvasColor(Cesium, colorRoot, '--gstar-map-label', Cesium.Color.WHITE)
+    const aoiColors: Readonly<Record<GstarAoiCategory, import('cesium').Color>> = {
+      '政': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-government', Cesium.Color.RED),
+      '企': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-enterprise', Cesium.Color.ORANGE),
+      '金融': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-finance', Cesium.Color.GOLD),
+      '教育': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-education', Cesium.Color.CYAN),
+      '医疗': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-medical', Cesium.Color.HOTPINK),
+      '商场': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-shopping', Cesium.Color.VIOLET),
+      '居民区': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-residential', Cesium.Color.LIME),
+    }
     const spatialById = new Map(props.spatial.map(item => [item.workspaceId, item]))
     let selectedMarker: Entity | undefined
 
@@ -254,12 +252,13 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
     }
     const selectedAoiEntities: Entity[] = []
     selectedSpatial?.aois.forEach((aoi, aoiIndex) => {
+      if (!props.visibleAoiCategories.includes(aoi.category)) return
       const polygons = aoi.geometry.type === 'Polygon'
         ? [aoi.geometry.coordinates]
         : aoi.geometry.coordinates
       polygons.forEach((rings, partIndex) => {
         const id = `gstar-aoi-${String(aoiIndex)}-${String(partIndex)}`
-        const color = aoiColors[categoryBucket(aoi.category)]
+        const color = aoiColors[aoi.category]
         const entity = viewer.entities.add({
           id,
           polygon: {
@@ -288,7 +287,8 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
       })
     }
   }, [
-    props.sites, props.spatial, props.mode, props.selectedSiteId, props.selectedAoiId, props.focusRevision, runtime,
+    props.sites, props.spatial, props.mode, props.visibleAoiCategories,
+    props.selectedSiteId, props.selectedAoiId, props.focusRevision, runtime,
   ])
 
   return (
