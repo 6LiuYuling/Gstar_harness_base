@@ -1,6 +1,7 @@
 /** GSTAR-only extension of the standard DSH Client Remote assembly. */
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import gstarDataSourcesRemote from '@deepseek-ai/dsh-gstar-data-source/remote'
 import gstarSitesRemote from '@deepseek-ai/dsh-gstar-site/remote'
 import gstarSpatialRemote from '@deepseek-ai/dsh-gstar-spatial/remote'
 // Pull the standard `ctx.remote` Client assembly declaration into this face.
@@ -17,7 +18,9 @@ export const inject = ['remote']
 export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   const disposeSites = await ctx.remote.$mount(gstarSitesRemote)
   const disposeSpatial = await ctx.remote.$mount(gstarSpatialRemote)
+  const disposeDataSources = await ctx.remote.$mount(gstarDataSourcesRemote)
   return async () => {
+    await disposeDataSources()
     await disposeSpatial()
     await disposeSites()
   }

@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DirectoryFlowOwnerProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type { GstarDataSourceSnapshot } from '@deepseek-ai/dsh-gstar-data-source/types'
 import type { GstarSiteSnapshot } from '@deepseek-ai/dsh-gstar-site/types'
 import type { GstarSpatialSnapshot } from '@deepseek-ai/dsh-gstar-spatial/types'
 import { GstarApp, type GstarAppProps } from '../src/client/GstarApp.tsx'
@@ -191,21 +192,40 @@ const AOI_SPATIAL: GstarSpatialSnapshot = {
   }],
 }
 
-const SOURCES = [{
-  id: 'osm-overpass',
+const SOURCES: readonly GstarDataSourceSnapshot[] = [{
+  id: 'osm-overpass' as never,
   name: 'OpenStreetMap / Overpass API',
   publisher: 'OpenStreetMap contributors',
   url: 'https://overpass-api.de/api/interpreter',
   categories: ['政', '企', '金融', '教育', '医疗', '商场', '居民区'] as const,
+  capabilities: ['aoi', 'entity'],
   accessMode: 'direct' as const,
   license: 'ODbL-1.0',
+  enabled: true,
+  defaultEnabled: true,
+  synchronizable: true,
 }, {
-  id: 'national-enterprise-credit',
+  id: 'national-enterprise-credit' as never,
   name: '国家企业信用信息公示系统',
   publisher: '国家市场监督管理总局',
   url: 'https://www.gsxt.gov.cn/index.html',
   categories: ['企'] as const,
+  capabilities: ['verification'],
   accessMode: 'reference' as const,
+  enabled: false,
+  defaultEnabled: false,
+  synchronizable: false,
+}, {
+  id: 'akshare-a-share' as never,
+  name: 'AKShare A 股上市公司',
+  publisher: 'AKShare 开源项目',
+  url: 'https://akshare.akfamily.xyz/data/stock/stock.html',
+  categories: ['企', '金融'],
+  capabilities: ['entity'],
+  accessMode: 'direct',
+  enabled: false,
+  defaultEnabled: false,
+  synchronizable: true,
 }]
 
 function storeHook<T>(store: { subscribe(listener: () => void): () => void; getSnapshot(): T }) {
@@ -224,7 +244,9 @@ function props(options: {
   readonly deleteSite?: GstarAppProps['deleteSite']
   readonly patchSpatial?: GstarAppProps['patchSpatial']
   readonly locateSpatial?: GstarAppProps['locateSpatial']
-  readonly refreshAois?: GstarAppProps['refreshAois']
+  readonly loadDataSources?: GstarAppProps['loadDataSources']
+  readonly setDataSourceEnabled?: GstarAppProps['setDataSourceEnabled']
+  readonly synchronizeDataSource?: GstarAppProps['synchronizeDataSource']
   readonly openSite?: GstarAppProps['openSite']
   readonly directoryAvailable?: boolean | (() => boolean)
   readonly sourceError?: string
@@ -241,8 +263,8 @@ function props(options: {
   const siteItems = () => typeof options.sites === 'function' ? options.sites() : options.sites ?? []
   const spatialItems = () => typeof options.spatial === 'function' ? options.spatial() : options.spatial ?? []
   const sources = options.sourceError === undefined
-    ? { items: SOURCES, phase: 'ready' as const }
-    : { items: SOURCES, phase: 'error' as const, error: options.sourceError }
+    ? { workspaceId: SITE.workspaceId, items: SOURCES, phase: 'ready' as const }
+    : { workspaceId: SITE.workspaceId, items: SOURCES, phase: 'error' as const, error: options.sourceError }
   const renderSlot: GstarAppProps['renderSlot'] = (name, owner) => {
     if (name === 'conversation.hero.workspace.directoryFlow') {
       const flow = owner as unknown as DirectoryFlowOwnerProps
@@ -266,7 +288,16 @@ function props(options: {
     deleteSite: options.deleteSite ?? vi.fn(),
     patchSpatial: options.patchSpatial ?? vi.fn(),
     locateSpatial: options.locateSpatial ?? vi.fn(),
-    refreshAois: options.refreshAois ?? vi.fn().mockResolvedValue(AOI_SPATIAL),
+    loadDataSources: options.loadDataSources ?? vi.fn().mockResolvedValue(undefined),
+    setDataSourceEnabled: options.setDataSourceEnabled ?? vi.fn().mockImplementation(async request => ({
+      ...SOURCES.find(source => source.id === request.sourceId)!, enabled: request.enabled,
+    })),
+    synchronizeDataSource: options.synchronizeDataSource ?? vi.fn().mockResolvedValue({
+      workspaceId: SITE.workspaceId,
+      sourceId: 'osm-overpass',
+      synchronizedAt: '2026-08-29T08:00:00.000Z',
+      message: '同步完成',
+    }),
     openSite: options.openSite ?? vi.fn(),
     renderSlot,
     useSessions: (() => undefined) as GstarAppProps['useSessions'],
@@ -364,8 +395,17 @@ describe('GstarApp three-column shell', () => {
     expect(map.getAttribute('data-map-mode')).toBe('3d')
   })
 
-  it('filters the seven AOI map categories and exposes direct versus official sources', () => {
-    render(<GstarApp {...props({ sites: [SITE], spatial: [AOI_SPATIAL] })} />)
+  it('filters the seven AOI categories and manages station-specific source plugins', async () => {
+    const setDataSourceEnabled = vi.fn().mockResolvedValue({ ...SOURCES[1]!, enabled: true })
+    const synchronizeDataSource = vi.fn().mockResolvedValue({
+      workspaceId: SITE.workspaceId,
+      sourceId: SOURCES[0]!.id,
+      synchronizedAt: '2026-08-29T08:00:00.000Z',
+      message: 'OSM 已同步',
+    })
+    render(<GstarApp {...props({
+      sites: [SITE], spatial: [AOI_SPATIAL], setDataSourceEnabled, synchronizeDataSource,
+    })} />)
     fireEvent.click(screen.getByText(SITE.title))
 
     const map = screen.getByLabelText('GSTAR Cesium 地图')
@@ -400,14 +440,31 @@ describe('GstarApp three-column shell', () => {
     fireEvent.click(screen.getByRole('button', { name: /^全选1$/u }))
     expect(map.getAttribute('data-visible-categories')).toContain('居民区')
 
-    fireEvent.click(screen.getByRole('button', { name: '数据源 2' }))
-    expect(screen.getByRole('complementary', { name: '公开数据源' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '数据源 1/3' }))
+    expect(screen.getByRole('complementary', { name: '数据源管理' })).toBeTruthy()
     expect(screen.getByText('OpenStreetMap / Overpass API')).toBeTruthy()
     expect(screen.getByText('国家企业信用信息公示系统')).toBeTruthy()
-    expect(screen.getByText('直接采集')).toBeTruthy()
-    expect(screen.getByText('官方校验')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '关闭公开数据源' }))
-    expect(screen.queryByRole('complementary', { name: '公开数据源' })).toBeNull()
+    expect(screen.getByText('AKShare A 股上市公司')).toBeTruthy()
+    expect(screen.getAllByText('直接数据源')).toHaveLength(2)
+    expect(screen.getByText('权威参考')).toBeTruthy()
+    fireEvent.click(screen.getByRole('checkbox', { name: '国家企业信用信息公示系统' }))
+    await waitFor(() => {
+      expect(setDataSourceEnabled).toHaveBeenCalledWith({
+        workspaceId: SITE.workspaceId,
+        sourceId: SOURCES[1]!.id,
+        enabled: true,
+      })
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: '立即同步' })[0]!)
+    await waitFor(() => {
+      expect(synchronizeDataSource).toHaveBeenCalledWith({
+        workspaceId: SITE.workspaceId,
+        sourceId: SOURCES[0]!.id,
+      })
+      expect(screen.getByText('OSM 已同步')).toBeTruthy()
+    })
+    fireEvent.click(screen.getByRole('button', { name: '关闭数据源管理' }))
+    expect(screen.queryByRole('complementary', { name: '数据源管理' })).toBeNull()
   })
 
   it('confirms station deletion and preserves the generic Workspace contract in its copy', async () => {
@@ -562,25 +619,30 @@ describe('GstarApp three-column shell', () => {
   })
 
   it('loads OpenStreetMap AOIs when a located station is opened without a publication', async () => {
-    const refreshAois = vi.fn().mockResolvedValue(AOI_SPATIAL)
+    const synchronizeDataSource = vi.fn().mockResolvedValue({
+      workspaceId: SITE.workspaceId, sourceId: SOURCES[0]!.id,
+      synchronizedAt: '2026-08-29T08:00:00.000Z', message: '同步完成',
+    })
     render(<GstarApp {...props({
       sites: [SITE],
       spatial: [{ workspaceId: SITE.workspaceId, aois: [], location: { longitude: 113.3, latitude: 23.1 } }],
-      refreshAois,
+      synchronizeDataSource,
     })} />)
 
     fireEvent.click(screen.getByText(SITE.title))
     await waitFor(() => {
-      expect(refreshAois).toHaveBeenCalledWith({ workspaceId: SITE.workspaceId })
+      expect(synchronizeDataSource).toHaveBeenCalledWith({
+        workspaceId: SITE.workspaceId, sourceId: SOURCES[0]!.id,
+      })
     })
   })
 
   it('reports a manual OpenStreetMap refresh failure and a source-catalog failure', async () => {
-    const refreshAois = vi.fn()
+    const synchronizeDataSource = vi.fn()
       .mockRejectedValueOnce('Overpass unavailable')
       .mockRejectedValueOnce(new Error('Overpass error'))
     render(<GstarApp {...props({
-      sites: [SITE], spatial: [AOI_SPATIAL], refreshAois, sourceError: 'catalog unavailable',
+      sites: [SITE], spatial: [AOI_SPATIAL], synchronizeDataSource, sourceError: 'catalog unavailable',
     })} />)
 
     fireEvent.click(screen.getByText(SITE.title))
@@ -592,33 +654,7 @@ describe('GstarApp three-column shell', () => {
     await waitFor(() => {
       expect(screen.getByText('OSM AOI 同步失败：Overpass error')).toBeTruthy()
     })
-    expect(screen.getByText('公开数据源同步失败：catalog unavailable')).toBeTruthy()
-  })
-
-  it('keeps a newer AOI refresh active when an earlier station refresh finishes first', async () => {
-    let resolveFirst!: (value: GstarSpatialSnapshot) => void
-    let resolveSecond!: (value: GstarSpatialSnapshot) => void
-    const refreshAois = vi.fn()
-      .mockImplementationOnce(() => new Promise<GstarSpatialSnapshot>((resolve) => { resolveFirst = resolve }))
-      .mockImplementationOnce(() => new Promise<GstarSpatialSnapshot>((resolve) => { resolveSecond = resolve }))
-    const secondSpatial = { ...AOI_SPATIAL, workspaceId: SECOND_SITE.workspaceId }
-    render(<GstarApp {...props({
-      sites: [SITE, SECOND_SITE], spatial: [AOI_SPATIAL, secondSpatial], refreshAois,
-    })} />)
-
-    fireEvent.click(screen.getByText(SITE.title))
-    fireEvent.click(screen.getByRole('button', { name: '更新 OSM AOI' }))
-    fireEvent.click(screen.getByText(SECOND_SITE.title))
-    fireEvent.click(screen.getByRole('button', { name: '更新 OSM AOI' }))
-
-    resolveFirst(AOI_SPATIAL)
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: '同步 OSM…' })).toBeTruthy()
-    })
-    resolveSecond(secondSpatial)
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: '更新 OSM AOI' })).toBeTruthy()
-    })
+    expect(screen.getByText('数据源插件加载失败：catalog unavailable')).toBeTruthy()
   })
 
   it('shows AOI entity fields and provenance from the Host snapshot', () => {

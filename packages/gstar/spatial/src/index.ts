@@ -6,13 +6,13 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type {
-  GstarDataSourceSnapshot, GstarSpatialLocateRequest, GstarSpatialPatchRequest,
+  GstarSpatialLocateRequest, GstarSpatialPatchRequest,
   GstarSpatialRefreshAoisRequest, GstarSpatialSnapshot,
 } from './types.ts'
 
 export type {
   GstarAoiCategory, GstarAoiGeometry, GstarAoiSnapshot, GstarCoordinate,
-  GstarDataSourceAccessMode, GstarDataSourceSnapshot, GstarEntityFieldValue,
+  GstarEntityFieldValue,
   GstarEntitySnapshot, GstarLinearRing, GstarMultiPolygonGeometry,
   GstarPolygonGeometry, GstarProvenanceSnapshot, GstarSpatialLocateRequest,
   GstarSpatialPatchRequest, GstarSpatialRefreshAoisRequest, GstarSpatialSnapshot,
@@ -39,12 +39,6 @@ export abstract class GstarSpatialService extends TypertRemoteService {
    * @returns one immutable projection per classified station, in station order.
    */
   abstract list(): Promise<readonly GstarSpatialSnapshot[]>
-
-  /**
-   * List direct acquisition and authoritative reference sources known to the active Provider.
-   * @returns immutable public source descriptors.
-   */
-  abstract listSources(): Promise<readonly GstarDataSourceSnapshot[]>
 
   /**
    * Patch location, station boundary, or AOIs and retain every omitted field.
@@ -77,15 +71,6 @@ export abstract class GstarSpatialService extends TypertRemoteService {
   }
 
   /**
-   * Remote adapter for {@link listSources}.
-   * @returns immutable public source descriptors.
-   */
-  @Remote('listSources')
-  remoteExportListSources(): Promise<readonly GstarDataSourceSnapshot[]> {
-    return this.listSources()
-  }
-
-  /**
    * Remote adapter for {@link patch}.
    * @param request - Spatial fields to commit for one station.
    * @returns the committed spatial snapshot.
@@ -105,15 +90,6 @@ export abstract class GstarSpatialService extends TypertRemoteService {
     return this.locate(request)
   }
 
-  /**
-   * Remote adapter for {@link refreshAois}.
-   * @param request - Station whose resolved bounds constrain the public-data query.
-   * @returns the committed spatial snapshot.
-   */
-  @Remote('refreshAois')
-  remoteExportRefreshAois(request: GstarSpatialRefreshAoisRequest): Promise<GstarSpatialSnapshot> {
-    return this.refreshAois(request)
-  }
 }
 
 export default GstarSpatialService

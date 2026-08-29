@@ -83,27 +83,6 @@ export interface GstarAoiSnapshot {
   readonly updatedAt: string
 }
 
-/** How a public source currently participates in the GSTAR acquisition pipeline. */
-export type GstarDataSourceAccessMode = 'direct' | 'reference'
-
-/** One public source available for acquisition or authoritative cross-checking. */
-export interface GstarDataSourceSnapshot {
-  /** Stable source identity used by provenance and source configuration. */
-  readonly id: string
-  /** Human-readable dataset or platform name. */
-  readonly name: string
-  /** Organization responsible for publishing the source. */
-  readonly publisher: string
-  /** Public entry point for the source. */
-  readonly url: string
-  /** AOI categories for which the source supplies or verifies data. */
-  readonly categories: readonly GstarAoiCategory[]
-  /** `direct` sources are fetched by GSTAR; `reference` sources support validation and enrichment. */
-  readonly accessMode: GstarDataSourceAccessMode
-  /** Public data license when the publisher declares one. */
-  readonly license?: string
-}
-
 /** Complete spatial projection for one GSTAR station Workspace. */
 export interface GstarSpatialSnapshot {
   /** Owning station Workspace identity. */
@@ -138,7 +117,7 @@ export interface GstarSpatialLocateRequest {
   readonly query: string
 }
 
-/** Fetch and replace one station's AOIs through the active acquisition Provider. */
+/** Fetch and replace one station's OSM AOIs through the Host acquisition Provider. */
 export interface GstarSpatialRefreshAoisRequest {
   /** Owning station Workspace identity. */
   readonly workspaceId: WorkspaceId

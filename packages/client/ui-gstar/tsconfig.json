@@ -11,8 +11,10 @@
     { "path": "../ui-layout" },
     { "path": "../ui-workspace" },
     { "path": "../../gstar/client-remotes/tsconfig.client.json" },
+    { "path": "../../gstar/data-source" },
     { "path": "../../gstar/site" },
     { "path": "../../gstar/spatial" },
+    { "path": "../../workspace/workspace" },
     { "path": "../../runtime-diagnostics/invariants" }
   ]
 }

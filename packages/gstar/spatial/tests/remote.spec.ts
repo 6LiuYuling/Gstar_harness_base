@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import GstarSpatialService from '../src/index.ts'
 import type {
-  GstarDataSourceSnapshot, GstarSpatialLocateRequest, GstarSpatialPatchRequest,
+  GstarSpatialLocateRequest, GstarSpatialPatchRequest,
   GstarSpatialRefreshAoisRequest, GstarSpatialSnapshot,
 } from '../src/types.ts'
 import * as invariant from '../src/invariant.ts'
@@ -23,17 +23,6 @@ class FixtureGstarSpatial extends GstarSpatialService {
 
   override list(): Promise<readonly GstarSpatialSnapshot[]> {
     return Promise.resolve(Object.freeze([SPATIAL]))
-  }
-
-  override listSources(): Promise<readonly GstarDataSourceSnapshot[]> {
-    return Promise.resolve(Object.freeze([{
-      id: 'osm-overpass',
-      name: 'OpenStreetMap / Overpass API',
-      publisher: 'OpenStreetMap contributors',
-      url: 'https://overpass-api.de/api/interpreter',
-      categories: ['政'],
-      accessMode: 'direct',
-    }]))
   }
 
   override patch(request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot> {
@@ -61,7 +50,7 @@ describe('gstar-spatial Service Definition', () => {
     expect(manifest.dependencies?.zod).toBe('^4.4.3')
   })
 
-  it('publishes the provider and delegates both Remote adapters', async () => {
+  it('publishes the provider and delegates browser-safe Remote adapters', async () => {
     const ctx = new Context()
     const fiber = ctx.plugin(FixtureGstarSpatial)
     await fiber.await()
@@ -72,12 +61,9 @@ describe('gstar-spatial Service Definition', () => {
     const refreshRequest: GstarSpatialRefreshAoisRequest = { workspaceId: SPATIAL.workspaceId }
 
     await expect(ctx.gstarSpatial.remoteExportList()).resolves.toEqual([SPATIAL])
-    await expect(ctx.gstarSpatial.remoteExportListSources()).resolves.toMatchObject([
-      { id: 'osm-overpass', accessMode: 'direct' },
-    ])
     await expect(ctx.gstarSpatial.remoteExportPatch(request)).resolves.toBe(SPATIAL)
     await expect(ctx.gstarSpatial.remoteExportLocate(locateRequest)).resolves.toBe(SPATIAL)
-    await expect(ctx.gstarSpatial.remoteExportRefreshAois(refreshRequest)).resolves.toBe(SPATIAL)
+    await expect(ctx.gstarSpatial.refreshAois(refreshRequest)).resolves.toBe(SPATIAL)
     expect((ctx.gstarSpatial as FixtureGstarSpatial).patches).toEqual([request])
     expect((ctx.gstarSpatial as FixtureGstarSpatial).locations).toEqual([locateRequest])
     expect((ctx.gstarSpatial as FixtureGstarSpatial).refreshes).toEqual([refreshRequest])

@@ -5,7 +5,7 @@
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/6LiuYuling/Gstar_harness_base.git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
     "directory": "packages/gstar/spatial-storage"
   },
   "type": "module",

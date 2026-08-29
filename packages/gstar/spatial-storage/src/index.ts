@@ -9,7 +9,7 @@ import z from '@deepseek-ai/schemastery'
 import GstarSpatialService from '@deepseek-ai/dsh-gstar-spatial'
 import type {
   GstarAoiCategory, GstarAoiGeometry, GstarAoiSnapshot, GstarCoordinate,
-  GstarDataSourceSnapshot, GstarEntityFieldValue, GstarLinearRing, GstarSpatialLocateRequest,
+  GstarEntityFieldValue, GstarLinearRing, GstarSpatialLocateRequest,
   GstarSpatialPatchRequest, GstarSpatialRefreshAoisRequest, GstarSpatialSnapshot,
 } from '@deepseek-ai/dsh-gstar-spatial/types'
 import type { GstarSiteDeletionPreparation } from '@deepseek-ai/dsh-gstar-site'
@@ -282,69 +282,6 @@ const GEOCODERS: readonly Geocoder[] = [
     decode: decodePhoton,
   },
 ]
-
-/** Build the public source catalog while keeping the configured acquisition endpoint visible. */
-function sourceCatalog(overpassEndpoint: string): readonly GstarDataSourceSnapshot[] {
-  return Object.freeze([
-    Object.freeze({
-      id: 'osm-overpass',
-      name: 'OpenStreetMap / Overpass API',
-      publisher: 'OpenStreetMap contributors',
-      url: overpassEndpoint,
-      categories: AOI_CATEGORIES,
-      accessMode: 'direct' as const,
-      license: 'ODbL-1.0',
-    }),
-    Object.freeze({
-      id: 'national-public-data-registry',
-      name: '国家公共数据资源登记平台',
-      publisher: '国家数据局',
-      url: 'https://sjdj.nda.gov.cn/',
-      categories: AOI_CATEGORIES,
-      accessMode: 'reference' as const,
-    }),
-    Object.freeze({
-      id: 'national-government-service',
-      name: '国家政务服务平台',
-      publisher: '国务院办公厅',
-      url: 'https://gjzwfw.www.gov.cn/index.html',
-      categories: Object.freeze(['政', '企'] as const),
-      accessMode: 'reference' as const,
-    }),
-    Object.freeze({
-      id: 'national-enterprise-credit',
-      name: '国家企业信用信息公示系统',
-      publisher: '国家市场监督管理总局',
-      url: 'https://www.gsxt.gov.cn/index.html',
-      categories: Object.freeze(['企'] as const),
-      accessMode: 'reference' as const,
-    }),
-    Object.freeze({
-      id: 'national-financial-license',
-      name: '金融许可证信息查询',
-      publisher: '国家金融监督管理总局',
-      url: 'https://xkz.nfra.gov.cn/',
-      categories: Object.freeze(['金融'] as const),
-      accessMode: 'reference' as const,
-    }),
-    Object.freeze({
-      id: 'moe-higher-education-list',
-      name: '全国普通高等学校名单',
-      publisher: '中华人民共和国教育部',
-      url: 'https://hudong.moe.gov.cn/qggxmd/',
-      categories: Object.freeze(['教育'] as const),
-      accessMode: 'reference' as const,
-    }),
-    Object.freeze({
-      id: 'nhc-data-query',
-      name: '国家卫生健康委员会数据查询',
-      publisher: '国家卫生健康委员会',
-      url: 'https://www.nhc.gov.cn/wjw/sjcx/sjcx.shtml',
-      categories: Object.freeze(['医疗'] as const),
-      accessMode: 'reference' as const,
-    }),
-  ])
-}
 
 /** Flatten every coordinate in a Polygon or MultiPolygon. */
 function geometryCoordinates(value: GstarAoiGeometry): readonly GstarCoordinate[] {
@@ -869,10 +806,6 @@ export class StorageGstarSpatialService extends GstarSpatialService {
     const stations = this.requireStations()
     const sites = await this.ctx.gstarSites.list()
     return Object.freeze(sites.map(site => snapshot(site.workspaceId, stations.get(site.workspaceId))))
-  }
-
-  override listSources(): Promise<readonly GstarDataSourceSnapshot[]> {
-    return Promise.resolve(sourceCatalog(this.config.overpassEndpoint))
   }
 
   override patch(request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot> {

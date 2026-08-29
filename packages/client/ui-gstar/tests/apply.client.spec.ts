@@ -43,19 +43,37 @@ async function setup(options: { readonly siteList?: unknown; readonly spatialLis
   const locateSpatial = vi.fn().mockResolvedValue({
     ok: true, value: { workspaceId: SITE.workspaceId, aois: [], location: { longitude: 113, latitude: 23 } },
   })
-  const refreshAois = vi.fn().mockResolvedValue({
-    ok: true, value: { workspaceId: SITE.workspaceId, aois: [], location: { longitude: 113, latitude: 23 } },
-  })
   const listSources = vi.fn().mockResolvedValue({
     ok: true,
     value: [{
       id: 'osm-overpass', name: 'OpenStreetMap / Overpass API', publisher: 'OpenStreetMap contributors',
-      url: 'https://overpass-api.de/api/interpreter', categories: ['政'], accessMode: 'direct',
+      url: 'https://www.openstreetmap.org/', categories: ['政'], capabilities: ['aoi', 'entity'],
+      accessMode: 'direct', enabled: true, defaultEnabled: true, synchronizable: true,
     }],
+  })
+  const setSourceEnabled = vi.fn().mockResolvedValue({
+    ok: true,
+    value: {
+      id: 'osm-overpass', name: 'OpenStreetMap / Overpass API', publisher: 'OpenStreetMap contributors',
+      url: 'https://www.openstreetmap.org/', categories: ['政'], capabilities: ['aoi', 'entity'],
+      accessMode: 'direct', enabled: false, defaultEnabled: true, synchronizable: true,
+    },
+  })
+  const synchronizeSource = vi.fn().mockResolvedValue({
+    ok: true,
+    value: {
+      workspaceId: SITE.workspaceId,
+      sourceId: 'osm-overpass',
+      synchronizedAt: '2026-08-29T08:00:00.000Z',
+      message: 'OSM synchronized',
+    },
   })
   ctx.provide('remote.gstarSites', { list: listSites, create: createSite, delete: deleteSite })
   ctx.provide('remote.gstarSpatial', {
-    list: listSpatial, listSources, patch: patchSpatial, locate: locateSpatial, refreshAois,
+    list: listSpatial, patch: patchSpatial, locate: locateSpatial,
+  })
+  ctx.provide('remote.gstarDataSources', {
+    list: listSources, setEnabled: setSourceEnabled, synchronize: synchronizeSource,
   })
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
@@ -63,7 +81,7 @@ async function setup(options: { readonly siteList?: unknown; readonly spatialLis
   const injected = (entry.inject as unknown as (actions: typeof ACTIONS) => GstarAppInjected)(ACTIONS)
   return {
     ctx, fiber, entry, injected, startSession, clearSession, listSites, createSite, deleteSite,
-    listSpatial, listSources, patchSpatial, locateSpatial, refreshAois,
+    listSpatial, listSources, setSourceEnabled, synchronizeSource, patchSpatial, locateSpatial,
   }
 }
 
@@ -72,7 +90,8 @@ describe('ui-gstar client apply', () => {
     const subject = await setup()
 
     expect(inject).toEqual([
-      'slots', 'sessions', 'workspaces', 'remote', 'remote.gstarSites', 'remote.gstarSpatial',
+      'slots', 'sessions', 'workspaces', 'remote',
+      'remote.gstarDataSources', 'remote.gstarSites', 'remote.gstarSpatial',
     ])
     expect(subject.entry.component).toBe(GstarApp)
     expect(subject.ctx.slots.spec('conversation')).toEqual({ kind: 'single', scope: 'session-maybe' })
@@ -86,13 +105,17 @@ describe('ui-gstar client apply', () => {
       expect(subject.injected.hooks.spatial.getSnapshot()).toEqual({
         items: [{ workspaceId: SITE.workspaceId, aois: [] }], phase: 'ready',
       })
-      expect(subject.injected.hooks.sources.getSnapshot()).toMatchObject({
-        items: [{ id: 'osm-overpass', accessMode: 'direct' }], phase: 'ready',
-      })
     })
     subject.injected.openSite(SITE.workspaceId as never)
     expect(subject.clearSession).toHaveBeenCalledOnce()
     expect(subject.startSession).toHaveBeenCalledWith(SITE.workspaceId)
+    await vi.waitFor(() => {
+      expect(subject.injected.hooks.sources.getSnapshot()).toMatchObject({
+        workspaceId: SITE.workspaceId,
+        items: [{ id: 'osm-overpass', accessMode: 'direct' }],
+        phase: 'ready',
+      })
+    })
 
     await subject.fiber.dispose()
     expect(subject.ctx.slots.entries('root')).toHaveLength(0)
@@ -143,11 +166,18 @@ describe('ui-gstar client apply', () => {
     expect(subject.locateSpatial).toHaveBeenCalledWith(locateRequest)
     expect(subject.listSpatial).toHaveBeenCalledTimes(3)
 
-    const refreshRequest = { workspaceId: SITE.workspaceId as never }
-    await expect(subject.injected.refreshAois(refreshRequest)).resolves.toMatchObject({
-      workspaceId: SITE.workspaceId,
-    })
-    expect(subject.refreshAois).toHaveBeenCalledWith(refreshRequest)
+    await subject.injected.loadDataSources(SITE.workspaceId as never)
+    const toggleRequest = {
+      workspaceId: SITE.workspaceId as never, sourceId: 'osm-overpass' as never, enabled: false,
+    }
+    await expect(subject.injected.setDataSourceEnabled(toggleRequest)).resolves.toMatchObject({ enabled: false })
+    expect(subject.setSourceEnabled).toHaveBeenCalledWith(toggleRequest)
+    const synchronizeRequest = {
+      workspaceId: SITE.workspaceId as never, sourceId: 'osm-overpass' as never,
+    }
+    await expect(subject.injected.synchronizeDataSource(synchronizeRequest))
+      .resolves.toMatchObject({ message: 'OSM synchronized' })
+    expect(subject.synchronizeSource).toHaveBeenCalledWith(synchronizeRequest)
     expect(subject.listSpatial).toHaveBeenCalledTimes(4)
   })
 

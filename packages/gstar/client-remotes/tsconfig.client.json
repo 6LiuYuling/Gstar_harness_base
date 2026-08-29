@@ -19,6 +19,9 @@
       "path": "../../client/runtime"
     },
     {
+      "path": "../data-source"
+    },
+    {
       "path": "../site"
     },
     {

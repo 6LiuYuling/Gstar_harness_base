@@ -822,6 +822,10 @@
   background: var(--dsw-alias-bg-base);
 }
 
+.sourcePanel li:not([data-enabled]) {
+  opacity: .68;
+}
+
 .sourcePanel li > div {
   display: flex;
   align-items: center;
@@ -829,12 +833,69 @@
   gap: 8px;
 }
 
-.sourcePanel li strong {
-  font-size: 12px;
-  line-height: 17px;
+.sourcePanel li label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
 }
 
-.sourcePanel li span {
+.sourcePanel li label input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sourcePanel li label > span {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  flex: none;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-2);
+  transition: background .16s ease, border-color .16s ease;
+}
+
+.sourcePanel li label > span::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-tertiary);
+  content: '';
+  transition: transform .16s ease, background .16s ease;
+}
+
+.sourcePanel li label input:checked + span {
+  border-color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 24%, transparent);
+}
+
+.sourcePanel li label input:checked + span::after {
+  background: var(--dsw-alias-state-business-primary);
+  transform: translateX(12px);
+}
+
+.sourcePanel li label input:focus-visible + span {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+}
+
+.sourcePanel li strong {
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourcePanel li > div > span[data-mode] {
   flex: none;
   padding: 2px 6px;
   border-radius: 8px;
@@ -844,7 +905,7 @@
   line-height: 14px;
 }
 
-.sourcePanel li span[data-mode='direct'] {
+.sourcePanel li > div > span[data-mode='direct'] {
   background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent);
   color: var(--dsw-alias-state-success-primary);
 }
@@ -855,11 +916,40 @@
   line-height: 15px;
 }
 
-.sourcePanel li a {
+.sourceLinks a {
   width: max-content;
   color: var(--dsw-alias-state-business-primary);
   font-size: 10px;
   line-height: 15px;
+}
+
+.sourceLinks button {
+  border: 1px solid color-mix(in srgb, var(--dsw-alias-state-business-primary) 35%, transparent);
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 10%, transparent);
+  color: var(--dsw-alias-state-business-primary);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.sourceLinks button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.sourcePanel > p.sourceError {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.sourcePanel > p.sourceNotice {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.sourcePanel li.sourceEmpty {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 18px;
 }
 
 .aoiInspector > header {

@@ -19,6 +19,12 @@
     - id: gstar-sites
       name: '@deepseek-ai/dsh-gstar-site-workspace'
 
+    # Source management is a durable station capability. Each source below is
+    # an ordinary Cordis row and can be added, removed, or replaced by a higher
+    # profile layer without changing the GSTAR UI or spatial Provider.
+    - id: gstar-data-sources
+      name: '@deepseek-ai/dsh-gstar-data-source-storage'
+
     # Spatial snapshots stay in a Host capability so Cesium only projects
     # station locations, AOIs, entities, and provenance returned by DSH.
     - id: gstar-spatial
@@ -32,6 +38,77 @@
         overpassMaxRetries: 2
         fallbackRadiusMeters: 15000
 
+    - id: gstar-source-osm
+      name: '@deepseek-ai/dsh-gstar-data-source-osm'
+
+    - id: gstar-source-akshare
+      name: '@deepseek-ai/dsh-gstar-data-source-akshare'
+      config:
+        pythonExecutable: 'python'
+        maxProfiles: 100
+        timeoutMilliseconds: 300000
+        maxOutputBytes: 4194304
+
+    - id: gstar-source-national-public-data-registry
+      name: '@deepseek-ai/dsh-gstar-data-source-reference'
+      config:
+        id: 'national-public-data-registry'
+        name: '国家公共数据资源登记平台'
+        publisher: '国家数据局'
+        url: 'https://sjdj.nda.gov.cn/'
+        categories: ['政', '企', '金融', '教育', '医疗', '商场', '居民区']
+        defaultEnabled: false
+
+    - id: gstar-source-national-government-service
+      name: '@deepseek-ai/dsh-gstar-data-source-reference'
+      config:
+        id: 'national-government-service'
+        name: '国家政务服务平台'
+        publisher: '国务院办公厅'
+        url: 'https://gjzwfw.www.gov.cn/index.html'
+        categories: ['政', '企']
+        defaultEnabled: false
+
+    - id: gstar-source-national-enterprise-credit
+      name: '@deepseek-ai/dsh-gstar-data-source-reference'
+      config:
+        id: 'national-enterprise-credit'
+        name: '国家企业信用信息公示系统'
+        publisher: '国家市场监督管理总局'
+        url: 'https://www.gsxt.gov.cn/index.html'
+        categories: ['企']
+        defaultEnabled: false
+
+    - id: gstar-source-national-financial-license
+      name: '@deepseek-ai/dsh-gstar-data-source-reference'
+      config:
+        id: 'national-financial-license'
+        name: '金融许可证信息查询'
+        publisher: '国家金融监督管理总局'
+        url: 'https://xkz.nfra.gov.cn/'
+        categories: ['金融']
+        defaultEnabled: false
+
+    - id: gstar-source-moe-higher-education-list
+      name: '@deepseek-ai/dsh-gstar-data-source-reference'
+      config:
+        id: 'moe-higher-education-list'
+        name: '全国普通高等学校名单'
+        publisher: '中华人民共和国教育部'
+        url: 'https://hudong.moe.gov.cn/qggxmd/'
+        categories: ['教育']
+        defaultEnabled: false
+
+    - id: gstar-source-nhc-data-query
+      name: '@deepseek-ai/dsh-gstar-data-source-reference'
+      config:
+        id: 'nhc-data-query'
+        name: '国家卫生健康委员会数据查询'
+        publisher: '国家卫生健康委员会'
+        url: 'https://www.nhc.gov.cn/wjw/sjcx/sjcx.shtml'
+        categories: ['医疗']
+        defaultEnabled: false
+
     # Read-only Agent Consumer: scopes station/AOI/entity/provenance queries
     # from the calling Session cwd and rejects non-station Workspaces.
     - id: gstar-tool-spatial-query
@@ -42,8 +119,8 @@
     - id: gstar-cesium-assets
       name: '@deepseek-ai/dsh-gstar-cesium-assets'
 
-    # Browser-only Remote contribution: mounts `gstarSites` and `gstarSpatial`
-    # into the DSH Client carrier without adding GSTAR namespaces to `dsh web`.
+    # Browser-only Remote contribution: mounts GSTAR station, spatial, and
+    # source-management namespaces without adding them to `dsh web`.
     - id: gstar-client-remotes
       name: '@deepseek-ai/dsh-gstar-client-remotes'
 

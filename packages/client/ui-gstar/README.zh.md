@@ -4,7 +4,7 @@
 
 GSTAR 浏览器根 Shell。它占用内置 `root` slot，渲染三栏局点工作区：左侧是 Host 已分类的局点列表，中间是支持 3D 与 2D 投影切换的 Cesium 地图，右侧是标准 DSH Conversation occupant。通用 `dsh web` Workspace 不会进入局点界面。
 
-注册它的 Client 插件持有由 `gstarSites` 与 `gstarSpatial` Remote namespace 支撑的无 React 局点和空间运行时。Cesium 只投影 Host 快照：持久化局点标记与边界、AOI Polygon/MultiPolygon 几何、实体字段与数据溯源。选择局点会为该局点 Workspace 启动 DSH Session，以高对比度框线绘制边界并让相机适配该几何范围，同时显示一条地图上边栏，集中提供政、企、金融、教育、医疗、商场、居民区、全选筛选、3D/2D 投影切换、OSM 刷新和公开数据源目录。每个类型筛选会复用其 Cesium Polygon 颜色作为图例色块和选中边框；全选使用完整的多色图例。打开已有定位但尚无 AOI 发布的局点时，会自动发起一次 Host 侧 OSM 刷新。切换投影后会重新适配所选边界或 AOI。现有 `ui-conversation` 插件继续渲染到声明的 `conversation` slot。只有点位而无边界时，暂时使用固定距离的相机后备。
+注册它的 Client 插件持有由 `gstarSites`、`gstarSpatial` 与 `gstarDataSources` Remote namespace 支撑的无 React 局点、空间和数据源运行时。Cesium 只投影 Host 快照：持久化局点标记与边界、AOI Polygon/MultiPolygon 几何、实体字段与数据溯源。选择局点会为该局点 Workspace 启动 DSH Session，以高对比度框线绘制边界并让相机适配该几何范围，同时显示一条地图上边栏，集中提供政、企、金融、教育、医疗、商场、居民区、全选筛选、3D/2D 投影切换、OSM 同步和局点数据源管理。每个类型筛选会复用其 Cesium Polygon 颜色作为图例色块和选中边框；全选使用完整的多色图例。来源面板列出动态加载插件，为所选局点持久化每个开关，并且只对已启用直接来源提供同步。打开已有定位但尚无 AOI 发布的局点时，只有该局点启用了 OSM，才会自动发起一次 OSM 来源同步。切换投影后会重新适配所选边界或 AOI。现有 `ui-conversation` 插件继续渲染到声明的 `conversation` slot。只有点位而无边界时，暂时使用固定距离的相机后备。
 
 标准 `ui-workspace` 行保持缺席，但根条目声明与 `dsh web` 相同的 directory-flow 洞。因此 `directory-picker-auto` 会原样提供原生选择器或应用内「选择工作区目录」对话框。用户输入必填局点名称并选择 Host 路径；`gstarSites.create` 完成后，`gstarSpatial.locate` 在 Host 侧解析并持久化标记，Cesium 自动飞到已提交坐标。
 
@@ -21,6 +21,7 @@ GSTAR 浏览器根 Shell。它占用内置 `root` slot，渲染三栏局点工�
 ## 已知限制与暂缓事项
 
 - AOI 来自 Host Overpass Provider 或其他流水线发布；浏览器不会伪造示例几何或溯源。
-- 官方来源在来源专用连接器完成直接采集前，会明确标注为参考源。
+- 参考插件不可同步；启用只表示核验策略可以使用，不代表已经自动采集。
+- AkShare 同步要求 Host 的 Python 环境已安装 `akshare` 包。
 - 首个地图 Provider 使用轻度暗色化的 Esri World Imagery 卫星瓦片，在局点尺度保留道路与建筑细节，并采用椭球地形；部署方仍需制定自己的影像与离线策略。
 - 右侧窄栏复用了完整 DSH 对话树与只读 `gstar_station_data` 工具；数据变更和流水线控制工具仍待实现。

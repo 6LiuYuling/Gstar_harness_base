@@ -215,13 +215,6 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
     expect(new URL(fetch.mock.calls[0]![0].url).searchParams.get('polygon_geojson')).toBe('1')
     expect(put).toHaveBeenCalledTimes(3)
 
-    await expect(context.gstarSpatial.listSources()).resolves.toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 'osm-overpass', accessMode: 'direct' }),
-      expect.objectContaining({ id: 'national-enterprise-credit', accessMode: 'reference' }),
-      expect.objectContaining({ id: 'national-financial-license', categories: ['金融'] }),
-      expect.objectContaining({ id: 'moe-higher-education-list', categories: ['教育'] }),
-      expect.objectContaining({ id: 'nhc-data-query', categories: ['医疗'] }),
-    ]))
     fetch.mockResolvedValueOnce({
       url: 'https://overpass-api.de/api/interpreter',
       statusCode: 200,

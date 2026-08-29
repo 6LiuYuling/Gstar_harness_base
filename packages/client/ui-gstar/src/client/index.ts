@@ -6,7 +6,9 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {} from '@deepseek-ai/dsh-gstar-site/remote'
+import type {} from '@deepseek-ai/dsh-gstar-data-source/remote'
 import type {} from '@deepseek-ai/dsh-gstar-spatial/remote'
+import { GstarDataSourceRuntime } from './data-source-runtime.ts'
 import { GstarApp, type GstarAppInjected } from './GstarApp.tsx'
 import { GstarLayoutController } from './layout-service.ts'
 import { GstarSiteRuntime } from './site-runtime.ts'
@@ -15,11 +17,16 @@ import { createGstarStore } from './stores.ts'
 
 export { GstarSiteRuntime } from './site-runtime.ts'
 export type { GstarSiteListState } from './site-runtime.ts'
+export { GstarDataSourceRuntime } from './data-source-runtime.ts'
+export type { GstarDataSourceListState } from './data-source-runtime.ts'
 export { GstarSpatialRuntime } from './spatial-runtime.ts'
-export type { GstarSourceListState, GstarSpatialListState } from './spatial-runtime.ts'
+export type { GstarSpatialListState } from './spatial-runtime.ts'
 
 /** Services required by the GSTAR browser plugin. */
-export const inject = ['slots', 'sessions', 'workspaces', 'remote', 'remote.gstarSites', 'remote.gstarSpatial']
+export const inject = [
+  'slots', 'sessions', 'workspaces', 'remote',
+  'remote.gstarDataSources', 'remote.gstarSites', 'remote.gstarSpatial',
+]
 
 /**
  * Register the GSTAR product shell.
@@ -27,11 +34,11 @@ export const inject = ['slots', 'sessions', 'workspaces', 'remote', 'remote.gsta
  */
 export function apply(ctx: ClientContext): void {
   const sites = new GstarSiteRuntime(ctx.remote.gstarSites)
+  const dataSources = new GstarDataSourceRuntime(ctx.remote.gstarDataSources)
   const spatial = new GstarSpatialRuntime(ctx.remote.gstarSpatial)
   const layout = new GstarLayoutController()
   void sites.load()
   void spatial.load()
-  void spatial.loadSources()
   const directoryFlow: HostObservable<boolean> = {
     getSnapshot: () => ctx.slots.entries('conversation.hero.workspace.directoryFlow').length > 0,
     subscribe: listener => ctx.slots.subscribe('conversation.hero.workspace.directoryFlow', listener),
@@ -51,11 +58,18 @@ export function apply(ctx: ClientContext): void {
       // Never let a restored generic-Web session flash inside the GSTAR chat column.
       ctx.sessions.clear()
       ctx.workspaces.startSession(workspaceId)
+      void dataSources.load({ workspaceId })
     },
     patchSpatial: request => spatial.patch(request),
     locateSpatial: request => spatial.locate(request),
-    refreshAois: request => spatial.refreshAois(request),
-    hooks: { directoryFlow, sites: sites.list, sources: spatial.sources, spatial: spatial.list },
+    loadDataSources: workspaceId => dataSources.load({ workspaceId }),
+    setDataSourceEnabled: request => dataSources.setEnabled(request),
+    synchronizeDataSource: async (request) => {
+      const result = await dataSources.synchronize(request)
+      await spatial.load()
+      return result
+    },
+    hooks: { directoryFlow, sites: sites.list, sources: dataSources.list, spatial: spatial.list },
   })
 
   ctx.effect(

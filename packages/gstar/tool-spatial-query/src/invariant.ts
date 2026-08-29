@@ -9,8 +9,8 @@ export const name = 'gstar-tool-spatial-query-invariant'
 /** Service required before the companion can register. */
 export const inject = ['invariants']
 
-// The execution path resolves station authority from the immutable calling
-// Session cwd on every call, so no process-global ownership state exists.
+// No runtime invariant: the execution path resolves station authority from the
+// immutable calling Session cwd on every call, so no process-global ownership state exists.
 const install: InvariantInstaller = () => {}
 
 /** Register this package's invariant companion. */

@@ -12,17 +12,24 @@ import type {
   GstarSiteCreateRequest, GstarSiteDeleteRequest, GstarSiteSnapshot,
 } from '@deepseek-ai/dsh-gstar-site/types'
 import type {
-  GstarAoiCategory, GstarAoiSnapshot, GstarDataSourceSnapshot, GstarSpatialLocateRequest,
-  GstarSpatialPatchRequest, GstarSpatialRefreshAoisRequest, GstarSpatialSnapshot,
+  GstarDataSourceId, GstarDataSourceSetEnabledRequest, GstarDataSourceSnapshot,
+  GstarDataSourceSynchronizationSnapshot, GstarDataSourceSynchronizeRequest,
+} from '@deepseek-ai/dsh-gstar-data-source/types'
+import type {
+  GstarAoiCategory, GstarAoiSnapshot, GstarSpatialLocateRequest,
+  GstarSpatialPatchRequest, GstarSpatialSnapshot,
 } from '@deepseek-ai/dsh-gstar-spatial/types'
 import { CesiumGlobe, type GstarMapMode } from './CesiumGlobe.tsx'
+import type { GstarDataSourceListState } from './data-source-runtime.ts'
 import type { GstarSiteListState } from './site-runtime.ts'
-import type { GstarSourceListState, GstarSpatialListState } from './spatial-runtime.ts'
+import type { GstarSpatialListState } from './spatial-runtime.ts'
 import type { createGstarStore } from './stores.ts'
 import { AOI_CATEGORIES, AOI_COLOR_PROPERTIES } from './aoi-palette.ts'
 import css from './GstarApp.module.css'
 
 type GstarRootChildSlot = DirectoryFlowSlotName | 'conversation' | 'details' | 'shell.overlay'
+
+const OSM_DATA_SOURCE_ID = 'osm-overpass' as GstarDataSourceId
 
 /** GSTAR business actions and live projections supplied by the registering Client plugin. */
 export interface GstarAppInjected {
@@ -36,8 +43,14 @@ export interface GstarAppInjected {
   patchSpatial(request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot>
   /** Resolve the user-supplied station name on the Host and persist its marker. */
   locateSpatial(request: GstarSpatialLocateRequest): Promise<GstarSpatialSnapshot>
-  /** Fetch and persist the station's current OpenStreetMap AOIs on the Host. */
-  refreshAois(request: GstarSpatialRefreshAoisRequest): Promise<GstarSpatialSnapshot>
+  /** Load the currently available plugins and effective selection for one station. */
+  loadDataSources(workspaceId: WorkspaceId): Promise<void>
+  /** Persist one station-specific data-source enablement override. */
+  setDataSourceEnabled(request: GstarDataSourceSetEnabledRequest): Promise<GstarDataSourceSnapshot>
+  /** Run one enabled direct source plugin and refresh spatial projections. */
+  synchronizeDataSource(
+    request: GstarDataSourceSynchronizeRequest,
+  ): Promise<GstarDataSourceSynchronizationSnapshot>
   /** Framework-bound Client hooks supplied by the registering plugin. */
   hooks: {
     /** Whether the composed DSH directory-picker currently occupies GSTAR's flow hole. */
@@ -46,8 +59,8 @@ export interface GstarAppInjected {
     sites: HostObservable<GstarSiteListState>
     /** Host-authoritative station locations, AOIs, entities, and provenance. */
     spatial: HostObservable<GstarSpatialListState>
-    /** Provider-owned direct acquisition and authoritative reference sources. */
-    sources: HostObservable<GstarSourceListState>
+    /** Dynamically loaded plugins and selection for the currently selected station. */
+    sources: HostObservable<GstarDataSourceListState>
   }
 }
 
@@ -112,29 +125,55 @@ function AoiInspector({ aoi, onClose }: { readonly aoi: GstarAoiSnapshot; readon
   )
 }
 
-/** Public source catalog distinguishes direct ingestion from official cross-check references. */
-function DataSourcePanel({ sources, onClose }: {
+/** Station-aware source manager over dynamically loaded source-plugin contributions. */
+function DataSourcePanel({ busySourceId, error, notice, sources, onClose, onSynchronize, onToggle }: {
+  readonly busySourceId?: GstarDataSourceId
+  readonly error?: string
+  readonly notice?: string
   readonly sources: readonly GstarDataSourceSnapshot[]
   readonly onClose: () => void
+  readonly onSynchronize: (source: GstarDataSourceSnapshot) => void
+  readonly onToggle: (source: GstarDataSourceSnapshot, enabled: boolean) => void
 }) {
   return (
-    <aside className={css.sourcePanel} aria-label="公开数据源">
+    <aside className={css.sourcePanel} aria-label="数据源管理">
       <header>
-        <div><span>PUBLIC SOURCES</span><h2>公开可信数据源</h2></div>
-        <button type="button" onClick={onClose} aria-label="关闭公开数据源">×</button>
+        <div><span>PLUGGABLE SOURCES</span><h2>局点数据源管理</h2></div>
+        <button type="button" onClick={onClose} aria-label="关闭数据源管理">×</button>
       </header>
-      <p>“直接采集”会进入 GSTAR AOI 快照；“官方校验”用于后续实体核验与字段补充。</p>
+      <p>开关仅作用于当前局点。每一项都由独立插件动态注册；直接数据源可同步，权威参考源用于核验。</p>
+      {error === undefined ? null : <p className={css.sourceError} role="alert">{error}</p>}
+      {notice === undefined ? null : <p className={css.sourceNotice} role="status">{notice}</p>}
       <ul>
+        {sources.length === 0 ? <li className={css.sourceEmpty}>当前没有已加载的数据源插件。</li> : null}
         {sources.map(source => (
-          <li key={source.id}>
+          <li key={source.id} data-enabled={source.enabled ? '' : undefined}>
             <div>
-              <strong>{source.name}</strong>
-              <span data-mode={source.accessMode}>
-                {source.accessMode === 'direct' ? '直接采集' : '官方校验'}
-              </span>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={source.enabled}
+                  disabled={busySourceId !== undefined}
+                  onChange={(event) => { onToggle(source, event.currentTarget.checked) }}
+                />
+                <span aria-hidden="true" />
+                <strong>{source.name}</strong>
+              </label>
+              <span data-mode={source.accessMode}>{source.accessMode === 'direct' ? '直接数据源' : '权威参考'}</span>
             </div>
             <small>{source.publisher} · {source.categories.join(' / ')}</small>
-            <a href={source.url} target="_blank" rel="noreferrer">打开公开平台</a>
+            <div className={css.sourceLinks}>
+              <a href={source.url} target="_blank" rel="noreferrer">查看来源</a>
+              {!source.synchronizable ? null : (
+                <button
+                  type="button"
+                  disabled={!source.enabled || busySourceId !== undefined}
+                  onClick={() => { onSynchronize(source) }}
+                >
+                  {busySourceId === source.id ? '同步中…' : '立即同步'}
+                </button>
+              )}
+            </div>
           </li>
         ))}
       </ul>
@@ -148,7 +187,8 @@ function DataSourcePanel({ sources, onClose }: {
  * @returns the GSTAR application shell.
  */
 export function GstarApp({
-  actions, createSite, deleteSite, locateSpatial, openSite, refreshAois, renderSlot,
+  actions, createSite, deleteSite, loadDataSources, locateSpatial, openSite,
+  setDataSourceEnabled, synchronizeDataSource, renderSlot,
   useDirectoryFlow, useSites, useSources, useSpatial, useStore,
 }: GstarAppProps) {
   const view = useStore(state => state)
@@ -171,7 +211,9 @@ export function GstarApp({
     () => new Set(AOI_CATEGORIES),
   )
   const [sourceOpen, setSourceOpen] = useState(false)
-  const [refreshingSiteId, setRefreshingSiteId] = useState<WorkspaceId>()
+  const [busySourceId, setBusySourceId] = useState<GstarDataSourceId>()
+  const [sourceActionError, setSourceActionError] = useState<string>()
+  const [sourceActionNotice, setSourceActionNotice] = useState<string>()
   const [aoiRefreshError, setAoiRefreshError] = useState<{
     readonly workspaceId: WorkspaceId
     readonly message: string
@@ -197,6 +239,10 @@ export function GstarApp({
   )
   const selectedSite = siteState.items.find(site => site.workspaceId === view.selectedSiteId)
   const selectedSpatial = selectedSite === undefined ? undefined : spatialById.get(selectedSite.workspaceId)
+  const selectedSources = selectedSite !== undefined && sourceState.workspaceId === selectedSite.workspaceId
+    ? sourceState.items
+    : []
+  const osmSource = selectedSources.find(source => source.id === OSM_DATA_SOURCE_ID)
   const selectedAoi = selectedSpatial?.aois.find(aoi => aoi.id === view.selectedAoiId)
   const allCategoriesSelected = visibleCategories.size === AOI_CATEGORIES.length
   const visibleAoiCount = selectedSpatial?.aois.filter(aoi => visibleCategories.has(aoi.category)).length ?? 0
@@ -209,27 +255,33 @@ export function GstarApp({
   }, [selectedSpatial])
 
   const refreshStationAois = useCallback(async (workspaceId: WorkspaceId) => {
-    setRefreshingSiteId(workspaceId)
+    setBusySourceId(OSM_DATA_SOURCE_ID)
     setAoiRefreshError(undefined)
     try {
-      await refreshAois({ workspaceId })
+      await synchronizeDataSource({ workspaceId, sourceId: OSM_DATA_SOURCE_ID })
     } catch (error) {
       setAoiRefreshError({
         workspaceId,
         message: error instanceof Error ? error.message : String(error),
       })
     } finally {
-      setRefreshingSiteId(current => current === workspaceId ? undefined : current)
+      setBusySourceId(current => current === OSM_DATA_SOURCE_ID ? undefined : current)
     }
-  }, [refreshAois])
+  }, [synchronizeDataSource])
+
+  useEffect(() => {
+    if (selectedSite === undefined) return
+    void loadDataSources(selectedSite.workspaceId)
+  }, [loadDataSources, selectedSite?.workspaceId])
 
   useEffect(() => {
     if (selectedSite === undefined || selectedSpatial === undefined || selectedSpatial.aois.length > 0
       || (selectedSpatial.boundary === undefined && selectedSpatial.location === undefined)
-      || autoRefreshSiteRef.current === selectedSite.workspaceId) return
+      || sourceState.phase !== 'ready' || sourceState.workspaceId !== selectedSite.workspaceId
+      || osmSource?.enabled !== true || autoRefreshSiteRef.current === selectedSite.workspaceId) return
     autoRefreshSiteRef.current = selectedSite.workspaceId
     void refreshStationAois(selectedSite.workspaceId)
-  }, [refreshStationAois, selectedSite, selectedSpatial])
+  }, [osmSource?.enabled, refreshStationAois, selectedSite, selectedSpatial, sourceState.phase, sourceState.workspaceId])
 
   useEffect(() => {
     if (selectedAoi !== undefined && !visibleCategories.has(selectedAoi.category)) actions.closeAoi()
@@ -238,6 +290,39 @@ export function GstarApp({
   const chooseSite = (workspaceId: WorkspaceId) => {
     actions.selectSite(workspaceId)
     openSite(workspaceId)
+  }
+
+  const toggleSource = async (source: GstarDataSourceSnapshot, enabled: boolean) => {
+    if (selectedSite === undefined) return
+    setBusySourceId(source.id)
+    setSourceActionError(undefined)
+    setSourceActionNotice(undefined)
+    try {
+      await setDataSourceEnabled({ workspaceId: selectedSite.workspaceId, sourceId: source.id, enabled })
+      setSourceActionNotice(`${source.name}已${enabled ? '启用' : '停用'}，仅影响当前局点。`)
+    } catch (error) {
+      setSourceActionError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusySourceId(current => current === source.id ? undefined : current)
+    }
+  }
+
+  const synchronizeSource = async (source: GstarDataSourceSnapshot) => {
+    if (selectedSite === undefined) return
+    setBusySourceId(source.id)
+    setSourceActionError(undefined)
+    setSourceActionNotice(undefined)
+    try {
+      const result = await synchronizeDataSource({
+        workspaceId: selectedSite.workspaceId,
+        sourceId: source.id,
+      })
+      setSourceActionNotice(result.message)
+    } catch (error) {
+      setSourceActionError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusySourceId(current => current === source.id ? undefined : current)
+    }
   }
 
   const createStation = async () => {
@@ -487,18 +572,25 @@ export function GstarApp({
               <div className={css.mapActions}>
                 <button
                   type="button"
-                  disabled={refreshingSiteId === selectedSite.workspaceId
+                  disabled={busySourceId !== undefined || osmSource?.enabled !== true
                     || (selectedSpatial?.boundary === undefined && selectedSpatial?.location === undefined)}
                   onClick={() => { void refreshStationAois(selectedSite.workspaceId) }}
                 >
-                  {refreshingSiteId === selectedSite.workspaceId ? '同步 OSM…' : '更新 OSM AOI'}
+                  {busySourceId === OSM_DATA_SOURCE_ID
+                    ? '同步 OSM…'
+                    : osmSource?.enabled === false ? 'OSM 已停用' : '更新 OSM AOI'}
                 </button>
                 <button
                   type="button"
                   aria-expanded={sourceOpen}
-                  onClick={() => { setSourceOpen(open => !open) }}
+                  onClick={() => {
+                    setSourceActionError(undefined)
+                    setSourceActionNotice(undefined)
+                    if (!sourceOpen) void loadDataSources(selectedSite.workspaceId)
+                    setSourceOpen(open => !open)
+                  }}
                 >
-                  数据源 {sourceState.items.length}
+                  数据源 {selectedSources.filter(source => source.enabled).length}/{selectedSources.length}
                 </button>
                 <div className={css.mapModeSwitch} role="group" aria-label="地图视图">
                   <button
@@ -531,7 +623,15 @@ export function GstarApp({
             </small>
           </div>
           {!sourceOpen || selectedSite === undefined ? null : (
-            <DataSourcePanel sources={sourceState.items} onClose={() => { setSourceOpen(false) }} />
+            <DataSourcePanel
+              sources={selectedSources}
+              {...(busySourceId === undefined ? {} : { busySourceId })}
+              {...(sourceActionError === undefined ? {} : { error: sourceActionError })}
+              {...(sourceActionNotice === undefined ? {} : { notice: sourceActionNotice })}
+              onClose={() => { setSourceOpen(false) }}
+              onSynchronize={(source) => { void synchronizeSource(source) }}
+              onToggle={(source, enabled) => { void toggleSource(source, enabled) }}
+            />
           )}
           {view.locatingSiteId === undefined ? null : (
             <div className={css.locatingNotice} role="status">
@@ -547,7 +647,7 @@ export function GstarApp({
             <p className={css.mapError} role="alert">OSM AOI 同步失败：{aoiRefreshError.message}</p>
           )}
           {sourceState.phase !== 'error' ? null : (
-            <p className={css.mapError} role="alert">公开数据源同步失败：{sourceState.error}</p>
+            <p className={css.mapError} role="alert">数据源插件加载失败：{sourceState.error}</p>
           )}
           {selectedAoi === undefined ? null : (
             <AoiInspector aoi={selectedAoi} onClose={() => { actions.closeAoi() }} />
