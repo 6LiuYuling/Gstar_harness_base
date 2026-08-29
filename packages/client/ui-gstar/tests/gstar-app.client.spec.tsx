@@ -717,7 +717,14 @@ describe('GstarApp three-column shell', () => {
     const { __mockState } = await import('cesium') as unknown as {
       readonly __mockState: {
         readonly viewers: Array<{
-          readonly entityItems: Array<{ readonly id?: string }>
+          readonly entityItems: Array<{
+            readonly id?: string
+            readonly polygon?: {
+              readonly height?: number
+              readonly material?: { readonly alpha?: number }
+              readonly outlineWidth?: number
+            }
+          }>
           readonly flyCalls: unknown[][]
           readonly morphs: string[]
           pickResult: unknown
@@ -781,6 +788,16 @@ describe('GstarApp three-column shell', () => {
         .toHaveLength(categories.length)
     })
     const viewer = __mockState.viewers[0]!
+    const renderedAois = viewer.entityItems.filter(entity => entity.id?.startsWith('gstar-aoi-'))
+    expect(renderedAois.every(entity => entity.polygon?.height === 24)).toBe(true)
+    expect(renderedAois[0]?.polygon).toMatchObject({
+      material: { alpha: 0.62 },
+      outlineWidth: 4,
+    })
+    expect(renderedAois[1]?.polygon).toMatchObject({
+      material: { alpha: 0.42 },
+      outlineWidth: 2,
+    })
     const handler = __mockState.handlers[0]!
     viewer.pickResult = { id: viewer.entityItems.find(entity => entity.id === 'gstar-site-0') }
     handler.action?.({ position: {} })

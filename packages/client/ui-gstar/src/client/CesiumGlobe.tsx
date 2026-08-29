@@ -10,6 +10,7 @@ import css from './CesiumGlobe.module.css'
 
 const CESIUM_ASSET_BASE = '/gstar/cesium/'
 const CESIUM_WIDGET_STYLES = `${CESIUM_ASSET_BASE}Widgets/widgets.css`
+const AOI_SURFACE_HEIGHT_METERS = 24
 
 type CesiumModule = typeof Cesium
 type CesiumBuildModuleUrl = typeof Cesium.buildModuleUrl & { setBaseUrl(value: string): void }
@@ -263,9 +264,13 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
           id,
           polygon: {
             hierarchy: hierarchy(Cesium, rings),
-            material: color.withAlpha(props.selectedAoiId === aoi.id ? 0.48 : 0.26),
+            // Keep AOI fills above the ellipsoid and the translucent station
+            // boundary so GPU depth precision cannot hide coincident surfaces.
+            height: AOI_SURFACE_HEIGHT_METERS,
+            material: color.withAlpha(props.selectedAoiId === aoi.id ? 0.62 : 0.42),
             outline: true,
             outlineColor: color.withAlpha(0.95),
+            outlineWidth: props.selectedAoiId === aoi.id ? 4 : 2,
           },
         })
         picks.set(id, { kind: 'aoi', workspaceId: selectedSpatial.workspaceId, aoiId: aoi.id })
