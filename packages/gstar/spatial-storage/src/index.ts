@@ -483,6 +483,87 @@ function pointInRing(point: GstarCoordinate, ring: GstarLinearRing): boolean {
   return inside
 }
 
+const GEOMETRY_EPSILON = 1e-12
+
+/** Test whether a point lies on one WGS84 line segment. */
+function pointOnSegment(point: GstarCoordinate, start: GstarCoordinate, end: GstarCoordinate): boolean {
+  const cross = (end.longitude - start.longitude) * (point.latitude - start.latitude)
+    - (end.latitude - start.latitude) * (point.longitude - start.longitude)
+  return Math.abs(cross) <= GEOMETRY_EPSILON
+    && point.longitude >= Math.min(start.longitude, end.longitude) - GEOMETRY_EPSILON
+    && point.longitude <= Math.max(start.longitude, end.longitude) + GEOMETRY_EPSILON
+    && point.latitude >= Math.min(start.latitude, end.latitude) - GEOMETRY_EPSILON
+    && point.latitude <= Math.max(start.latitude, end.latitude) + GEOMETRY_EPSILON
+}
+
+/** Test strict Polygon interior; boundary contact is handled by ringsIntersect first. */
+function pointInPolygon(point: GstarCoordinate, rings: readonly GstarLinearRing[]): boolean {
+  const outer = rings[0]
+  return outer !== undefined && pointInRing(point, outer)
+    && !rings.slice(1).some(hole => pointInRing(point, hole))
+}
+
+/** Test whether two closed linear-ring boundaries intersect or touch. */
+function ringsIntersect(left: GstarLinearRing, right: GstarLinearRing): boolean {
+  for (let leftIndex = 1; leftIndex < left.length; leftIndex++) {
+    const leftStart = left[leftIndex - 1]
+    const leftEnd = left[leftIndex]
+    /* v8 ignore next -- persisted linear rings contain at least four positions. */
+    if (leftStart === undefined || leftEnd === undefined) continue
+    for (let rightIndex = 1; rightIndex < right.length; rightIndex++) {
+      const rightStart = right[rightIndex - 1]
+      const rightEnd = right[rightIndex]
+      /* v8 ignore next -- persisted linear rings contain at least four positions. */
+      if (rightStart === undefined || rightEnd === undefined) continue
+      const leftToStart = (leftEnd.longitude - leftStart.longitude)
+        * (rightStart.latitude - leftStart.latitude)
+        - (leftEnd.latitude - leftStart.latitude) * (rightStart.longitude - leftStart.longitude)
+      const leftToEnd = (leftEnd.longitude - leftStart.longitude)
+        * (rightEnd.latitude - leftStart.latitude)
+        - (leftEnd.latitude - leftStart.latitude) * (rightEnd.longitude - leftStart.longitude)
+      const rightToStart = (rightEnd.longitude - rightStart.longitude)
+        * (leftStart.latitude - rightStart.latitude)
+        - (rightEnd.latitude - rightStart.latitude) * (leftStart.longitude - rightStart.longitude)
+      const rightToEnd = (rightEnd.longitude - rightStart.longitude)
+        * (leftEnd.latitude - rightStart.latitude)
+        - (rightEnd.latitude - rightStart.latitude) * (leftEnd.longitude - rightStart.longitude)
+      const crosses = ((leftToStart > GEOMETRY_EPSILON && leftToEnd < -GEOMETRY_EPSILON)
+        || (leftToStart < -GEOMETRY_EPSILON && leftToEnd > GEOMETRY_EPSILON))
+        && ((rightToStart > GEOMETRY_EPSILON && rightToEnd < -GEOMETRY_EPSILON)
+          || (rightToStart < -GEOMETRY_EPSILON && rightToEnd > GEOMETRY_EPSILON))
+      if (crosses
+        || pointOnSegment(rightStart, leftStart, leftEnd)
+        || pointOnSegment(rightEnd, leftStart, leftEnd)
+        || pointOnSegment(leftStart, rightStart, rightEnd)
+        || pointOnSegment(leftEnd, rightStart, rightEnd)) return true
+    }
+  }
+  return false
+}
+
+/** Expand either public geometry kind into a common Polygon list. */
+function geometryPolygons(value: GstarAoiGeometry): readonly (readonly GstarLinearRing[])[] {
+  return value.type === 'Polygon' ? [value.coordinates] : value.coordinates
+}
+
+/** Admit only AOIs whose actual geometry intersects the selected station geometry. */
+function geometriesIntersect(left: GstarAoiGeometry, right: GstarAoiGeometry): boolean {
+  for (const leftPolygon of geometryPolygons(left)) {
+    const leftOuter = leftPolygon[0]
+    /* v8 ignore next -- the public geometry schema requires an outer ring. */
+    if (leftOuter === undefined) continue
+    for (const rightPolygon of geometryPolygons(right)) {
+      const rightOuter = rightPolygon[0]
+      /* v8 ignore next -- the public geometry schema requires an outer ring. */
+      if (rightOuter === undefined) continue
+      if (leftPolygon.some(leftRing => rightPolygon.some(rightRing => ringsIntersect(leftRing, rightRing)))
+        || leftOuter.some(point => pointInPolygon(point, rightPolygon))
+        || rightOuter.some(point => pointInPolygon(point, leftPolygon))) return true
+    }
+  }
+  return false
+}
+
 /** Decode a closed way or multipolygon relation into GSTAR AOI geometry. */
 function overpassGeometry(element: OverpassElement): GstarAoiGeometry | undefined {
   if (element.type === 'way') {
@@ -840,11 +921,12 @@ export class StorageGstarSpatialService extends GstarSpatialService {
       throw new Error(`gstarSpatial.refreshAois: Workspace ${request.workspaceId} is not a GSTAR station`)
     }
     const current = this.requireStations().get(request.workspaceId)
-    const bounds = current?.boundary === undefined
+    const boundary = current?.boundary === undefined ? undefined : copyGeometry(current.boundary)
+    const bounds = boundary === undefined
       ? current?.location === undefined
         ? undefined
         : markerBounds(copyCoordinate(current.location), this.config.fallbackRadiusMeters)
-      : boundaryBounds(copyGeometry(current.boundary))
+      : boundaryBounds(boundary)
     if (bounds === undefined) {
       throw new Error('请先完成局点自动定位，再从 OpenStreetMap 获取 AOI')
     }
@@ -862,7 +944,10 @@ export class StorageGstarSpatialService extends GstarSpatialService {
       throw new Error('OpenStreetMap AOI 获取失败：Overpass 响应超过 DSH Web 获取上限')
     }
     const retrievedAt = new Date().toISOString()
-    const aois = decodeOverpass(result.body.content, retrievedAt, this.config.overpassMaxElements)
+    const decodedAois = decodeOverpass(result.body.content, retrievedAt, this.config.overpassMaxElements)
+    const aois = boundary === undefined
+      ? decodedAois
+      : decodedAois.filter(aoi => geometriesIntersect(aoi.geometry, boundary))
     return this.patch({ workspaceId: request.workspaceId, aois })
   }
 

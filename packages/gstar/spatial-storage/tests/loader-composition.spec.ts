@@ -92,6 +92,8 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
               type: 'Polygon',
               coordinates: [[
                 [113, 23], [114, 23], [114, 24], [113, 23],
+              ], [
+                [113.4, 23.05], [113.5, 23.05], [113.5, 23.1], [113.4, 23.05],
               ]],
             },
           }]),
@@ -196,6 +198,11 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
             { longitude: 114, latitude: 23 },
             { longitude: 114, latitude: 24 },
             { longitude: 113, latitude: 23 },
+          ], [
+            { longitude: 113.4, latitude: 23.05 },
+            { longitude: 113.5, latitude: 23.05 },
+            { longitude: 113.5, latitude: 23.1 },
+            { longitude: 113.4, latitude: 23.05 },
           ]],
         },
         aois: [aoi],
@@ -228,6 +235,28 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
               { lon: 113.21, lat: 23.11 },
               { lon: 113.2, lat: 23.1 },
             ],
+          }, {
+            // Inside the boundary envelope but outside its actual triangular Polygon.
+            type: 'way',
+            id: 1002,
+            tags: { name: '相邻区医院', amenity: 'hospital' },
+            geometry: [
+              { lon: 113.1, lat: 23.8 },
+              { lon: 113.11, lat: 23.8 },
+              { lon: 113.11, lat: 23.81 },
+              { lon: 113.1, lat: 23.8 },
+            ],
+          }, {
+            // Inside an excluded hole of the station Polygon.
+            type: 'way',
+            id: 1003,
+            tags: { name: '局点范围空洞内医院', amenity: 'hospital' },
+            geometry: [
+              { lon: 113.47, lat: 23.06 },
+              { lon: 113.48, lat: 23.06 },
+              { lon: 113.48, lat: 23.07 },
+              { lon: 113.47, lat: 23.06 },
+            ],
           }],
         }),
       },
@@ -254,6 +283,8 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
       }],
     })
     expect(refreshed.aois[0]?.provenance[0]?.checksum).toMatch(/^sha256:/u)
+    expect(refreshed.aois.some(aoi => aoi.id === 'osm-way-1002')).toBe(false)
+    expect(refreshed.aois.some(aoi => aoi.id === 'osm-way-1003')).toBe(false)
     const overpassRequest = new URL(fetch.mock.calls[1]![0].url)
     expect(overpassRequest.hostname).toBe('overpass-api.de')
     expect(overpassRequest.searchParams.get('data')).toContain('["amenity"')
