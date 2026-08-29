@@ -62,6 +62,9 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
       "- name: '@deepseek-ai/dsh-gstar-spatial-storage'",
       '  config:',
       '    overpassMaxElements: 50',
+      '    overpassRequestIntervalMilliseconds: 1',
+      '    overpassRetryDelayMilliseconds: 1',
+      '    overpassMaxRetries: 2',
       '',
     ].join('\n'))
 
@@ -499,11 +502,14 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
     fetch.mockRejectedValueOnce(new Error('Overpass unavailable'))
     await expect(context.gstarSpatial.refreshAois({ workspaceId: SITE_ID }))
       .rejects.toThrow('OpenStreetMap AOI 获取失败：Overpass unavailable')
-    fetch.mockResolvedValueOnce({
-      url: 'https://overpass-api.de/api/interpreter', statusCode: 429,
-      body: { kind: 'text', content: '{}' }, truncated: false,
-    })
-    await expect(context.gstarSpatial.refreshAois({ workspaceId: SITE_ID })).rejects.toThrow('Overpass HTTP 429')
+    fetch
+      .mockResolvedValueOnce(response('{}', 429))
+      .mockResolvedValueOnce(response('{}', 429))
+      .mockResolvedValueOnce(response('{}', 429))
+    await expect(context.gstarSpatial.refreshAois({ workspaceId: SITE_ID }))
+      .rejects.toThrow('Overpass HTTP 429（已按限流间隔重试 2 次')
+    fetch.mockResolvedValueOnce(response('{}', 503))
+    await expect(context.gstarSpatial.refreshAois({ workspaceId: SITE_ID })).rejects.toThrow('Overpass HTTP 503')
     fetch.mockResolvedValueOnce({
       url: 'https://overpass-api.de/api/interpreter', statusCode: 200,
       body: { kind: 'text', content: '{}' }, truncated: true,

@@ -27,6 +27,9 @@
         overpassEndpoint: 'https://overpass-api.de/api/interpreter'
         overpassTimeoutSeconds: 120
         overpassMaxElements: 2000
+        overpassRequestIntervalMilliseconds: 1000
+        overpassRetryDelayMilliseconds: 30000
+        overpassMaxRetries: 2
         fallbackRadiusMeters: 15000
 
     # Read-only Agent Consumer: scopes station/AOI/entity/provenance queries

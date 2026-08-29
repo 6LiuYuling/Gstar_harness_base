@@ -14,7 +14,7 @@ import type {
 } from '@deepseek-ai/dsh-gstar-spatial/types'
 import type { GstarSiteDeletionPreparation } from '@deepseek-ai/dsh-gstar-site'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
-import type {} from '@deepseek-ai/dsh-web'
+import type { WebFetchResult } from '@deepseek-ai/dsh-web'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { gstarSpatialDomainSpec, type GstarSpatialRecord } from './spec.ts'
 
@@ -37,6 +37,7 @@ const AOI_CATEGORIES: readonly GstarAoiCategory[] = [
 
 const AOI_CATEGORY_SET: ReadonlySet<string> = new Set(AOI_CATEGORIES)
 const OVERPASS_MAX_SUBDIVISION_DEPTH = 4
+const OVERPASS_MAX_BACKOFF_MILLISECONDS = 300_000
 
 /** Provider configuration for bounded public OpenStreetMap acquisition. */
 export interface Config {
@@ -46,6 +47,12 @@ export interface Config {
   overpassTimeoutSeconds?: number
   /** Maximum elements per Overpass request before the bounds are subdivided. */
   overpassMaxElements?: number
+  /** Minimum pause after one Overpass response before the next request starts. */
+  overpassRequestIntervalMilliseconds?: number
+  /** Initial pause after HTTP 429; each subsequent retry doubles this value. */
+  overpassRetryDelayMilliseconds?: number
+  /** Number of retries after an Overpass HTTP 429 response. */
+  overpassMaxRetries?: number
   /** Search radius used when a station has a marker but no boundary. */
   fallbackRadiusMeters?: number
 }
@@ -402,6 +409,11 @@ function subdivideBounds(bounds: QueryBounds): readonly QueryBounds[] {
     { south: latitudeMiddle, west: bounds.west, north: bounds.north, east: longitudeMiddle },
     { south: latitudeMiddle, west: longitudeMiddle, north: bounds.north, east: bounds.east },
   ]
+}
+
+/** Pause between public Overpass requests. */
+function pause(milliseconds: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, milliseconds))
 }
 
 /** Keep only string-valued OSM tags at the untyped JSON boundary. */
@@ -805,6 +817,9 @@ export class StorageGstarSpatialService extends GstarSpatialService {
     overpassEndpoint: z.string().default('https://overpass-api.de/api/interpreter'),
     overpassTimeoutSeconds: z.natural().min(1).max(300).default(120),
     overpassMaxElements: z.natural().min(1).max(10_000).default(2_000),
+    overpassRequestIntervalMilliseconds: z.natural().max(60_000).default(1_000),
+    overpassRetryDelayMilliseconds: z.natural().min(1).max(60_000).default(30_000),
+    overpassMaxRetries: z.natural().max(4).default(2),
     fallbackRadiusMeters: z.number().min(100).max(100_000).default(15_000),
   })
 
@@ -813,6 +828,8 @@ export class StorageGstarSpatialService extends GstarSpatialService {
   private operationTail: Promise<void> = Promise.resolve()
   private operationAdmissionOpen = true
   private readonly config: ResolvedConfig
+  private overpassRequestTail: Promise<void> = Promise.resolve()
+  private nextOverpassRequestAt = 0
 
   /**
    * @param ctx - Host context carrying storage, station, and Web capabilities.
@@ -932,6 +949,40 @@ export class StorageGstarSpatialService extends GstarSpatialService {
     throw new Error('局点自动定位未获得任何提供方响应')
   }
 
+  /** Serialize public Overpass traffic and retain the server cooldown across concurrent refreshes. */
+  private queueOverpassFetch(url: URL, rateLimitCooldownMilliseconds: number): Promise<WebFetchResult> {
+    const request = this.overpassRequestTail.then(async () => {
+      const waitMilliseconds = this.nextOverpassRequestAt - Date.now()
+      if (waitMilliseconds > 0) await pause(waitMilliseconds)
+      let cooldownMilliseconds = this.config.overpassRequestIntervalMilliseconds
+      try {
+        const result = await this.ctx.web.fetch({ url: url.href })
+        if (result.statusCode === 429) cooldownMilliseconds = rateLimitCooldownMilliseconds
+        return result
+      } finally {
+        this.nextOverpassRequestAt = Date.now() + cooldownMilliseconds
+      }
+    })
+    this.overpassRequestTail = request.then(() => undefined, () => undefined)
+    return request
+  }
+
+  /** Retry a rate-limited Overpass request with the documented pause and bounded exponential backoff. */
+  private async fetchOverpass(url: URL): Promise<WebFetchResult> {
+    for (let attempt = 0; attempt <= this.config.overpassMaxRetries; attempt++) {
+      const backoffAttempt = Math.min(attempt, Math.max(0, this.config.overpassMaxRetries - 1))
+      const rateLimitCooldownMilliseconds = Math.min(
+        this.config.overpassRetryDelayMilliseconds * 2 ** backoffAttempt,
+        OVERPASS_MAX_BACKOFF_MILLISECONDS,
+      )
+      const result = await this.queueOverpassFetch(url, rateLimitCooldownMilliseconds)
+      if (result.statusCode !== 429) return result
+    }
+    throw new Error(
+      `Overpass HTTP 429（已按限流间隔重试 ${String(this.config.overpassMaxRetries)} 次，公共服务仍繁忙）`,
+    )
+  }
+
   /** Fetch complete AOI coverage, recursively tiling any response that reaches the per-request cap. */
   private async collectOverpassAois(
     bounds: QueryBounds, retrievedAt: string, depth = 0,
@@ -939,7 +990,7 @@ export class StorageGstarSpatialService extends GstarSpatialService {
     const url = overpassUrl(bounds, this.config)
     let result
     try {
-      result = await this.ctx.web.fetch({ url: url.href })
+      result = await this.fetchOverpass(url)
     } catch (cause) {
       throw new Error(`OpenStreetMap AOI 获取失败：${errorChain(cause)}`, { cause })
     }
