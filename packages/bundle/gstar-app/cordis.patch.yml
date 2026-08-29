@@ -45,6 +45,8 @@
       name: '@deepseek-ai/dsh-gstar-data-source-akshare'
       config:
         pythonExecutable: 'python'
+        caBundlePath: ''
+        insecureSkipTlsVerify: false
         maxProfiles: 100
         timeoutMilliseconds: 300000
         maxOutputBytes: 4194304

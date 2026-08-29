@@ -20,7 +20,7 @@ The browser mounts the generated `gstarDataSources` Remote and loads source stat
 
 The GSTAR Profile loads OpenStreetMap as a default-enabled direct AOI/entity plugin, AKShare as a default-disabled direct entity plugin, and each official platform as an independently configured reference-plugin row. A higher Profile layer can remove, add, or replace those rows without changing the registry or UI.
 
-AKShare enriches existing enterprise or financial AOIs rather than creating geometry. Its bounded Python bridge matches A-share names against AOI names and aliases, retrieves the corresponding CNInfo company profile, and accepts a record only when its registered or office address contains all usable city and district tokens from the station title. One complete spatial patch adds a `listed_company` entity and source provenance after bridge validation. The connector does not merge a group parent with a listed subsidiary or admit an address from a neighboring district.
+AKShare enriches existing enterprise or financial AOIs rather than creating geometry. Its bounded Python bridge matches A-share names against AOI names and aliases, retrieves the corresponding CNInfo company profile, and accepts a record only when its registered or office address contains all usable city and district tokens from the station title. One complete spatial patch adds a `listed_company` entity and source provenance after bridge validation. TLS verification is strict by default: deployments may supply a Requests CA bundle, while an explicit mutually exclusive insecure switch affects only the isolated bridge child. The connector does not merge a group parent with a listed subsidiary or admit an address from a neighboring district.
 
 ## Alternatives considered
 
@@ -36,7 +36,7 @@ AKShare enriches existing enterprise or financial AOIs rather than creating geom
 
 ## Verification
 
-Service and Loader-composition tests cover Remote delegation, live source registration, default and overridden enablement, station rejection, disabled and reference-only execution, OSM delegation, deletion rollback, and disposal. Source tests cover reference URL validation, OSM summaries, AKShare subprocess bounds, output validation, no-partial-write failures, entity provenance, and missing station or spatial projections. Client tests cover three Remote mounts, station-aware stale-load protection, toggle and synchronization errors, OSM policy routing, and the source-manager controls.
+Service and Loader-composition tests cover Remote delegation, live source registration, default and overridden enablement, station rejection, disabled and reference-only execution, OSM delegation, deletion rollback, and disposal. Source tests cover reference URL validation, OSM summaries, AKShare subprocess bounds, strict and custom-CA TLS configuration, explicit insecure isolation, concise certificate diagnostics, output validation, no-partial-write failures, entity provenance, and missing station or spatial projections. Client tests cover three Remote mounts, station-aware stale-load protection, toggle and synchronization errors, OSM policy routing, and the source-manager controls.
 
 ## Consequences
 

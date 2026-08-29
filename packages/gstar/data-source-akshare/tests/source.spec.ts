@@ -2,13 +2,15 @@ import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-sub
 import { describe, expect, it, vi } from 'vitest'
 import { WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import type { GstarDataSourceProvider } from '@deepseek-ai/dsh-gstar-data-source'
-import type { GstarSpatialSnapshot } from '@deepseek-ai/dsh-gstar-spatial/types'
+import type { GstarSpatialPatchRequest, GstarSpatialSnapshot } from '@deepseek-ai/dsh-gstar-spatial/types'
 import { AKSHARE_DATA_SOURCE_ID, apply, type Config } from '../src/index.ts'
 import * as invariant from '../src/invariant.ts'
 
 const SITE_ID = WorkspaceId('site-1')
 const CONFIG: Config = {
   pythonExecutable: 'python',
+  caBundlePath: '',
+  insecureSkipTlsVerify: false,
   maxProfiles: 20,
   timeoutMilliseconds: 30_000,
   maxOutputBytes: 65_536,
@@ -38,6 +40,17 @@ const SPATIAL: GstarSpatialSnapshot = {
   }],
 }
 
+function config(overrides: Partial<Config> = {}): Config {
+  return {
+    pythonExecutable: overrides.pythonExecutable ?? CONFIG.pythonExecutable,
+    caBundlePath: overrides.caBundlePath ?? CONFIG.caBundlePath,
+    insecureSkipTlsVerify: overrides.insecureSkipTlsVerify ?? CONFIG.insecureSkipTlsVerify,
+    maxProfiles: overrides.maxProfiles ?? CONFIG.maxProfiles,
+    timeoutMilliseconds: overrides.timeoutMilliseconds ?? CONFIG.timeoutMilliseconds,
+    maxOutputBytes: overrides.maxOutputBytes ?? CONFIG.maxOutputBytes,
+  }
+}
+
 function handle(
   stdout: string,
   options: { readonly stderr?: string; readonly exitCode?: number; readonly lossy?: boolean } = {},
@@ -57,10 +70,13 @@ function handle(
   }
 }
 
-function fixture(stdout: string, options?: Parameters<typeof handle>[1]) {
+function fixture(stdout: string, options?: Parameters<typeof handle>[1], config: Config = CONFIG) {
   let provider: GstarDataSourceProvider | undefined
   let spawnSpec: SubprocessSpawnSpec | undefined
-  const patch = vi.fn(async request => ({ ...SPATIAL, ...request }))
+  const patch = vi.fn(async (request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot> => ({
+    ...SPATIAL,
+    ...request,
+  }))
   const spawn = vi.fn((spec: SubprocessSpawnSpec) => {
     spawnSpec = spec
     return handle(stdout, options)
@@ -71,7 +87,7 @@ function fixture(stdout: string, options?: Parameters<typeof handle>[1]) {
     gstarSpatial: { list: async () => [SPATIAL], patch },
     subprocess: { resolveExecutable: async () => '/usr/bin/python', spawn },
   }
-  apply(ctx as never, CONFIG)
+  apply(ctx as never, config)
   if (provider?.synchronize === undefined) throw new Error('AKShare source did not register synchronize')
   return { ctx, patch, provider, spawn, getSpawnSpec: () => spawnSpec }
 }
@@ -98,15 +114,13 @@ describe('gstar-data-source-akshare', () => {
     await expect(subject.provider.synchronize!(SITE_ID))
       .resolves.toBe('已为 1 个企业 AOI 补充 A 股上市公司资料')
     const request = subject.patch.mock.calls[0]![0]
-    expect(request.aois[0]).toMatchObject({
-      id: 'osm-way-1',
-      entities: expect.arrayContaining([
-        expect.objectContaining({ id: 'akshare-a-000001', type: 'listed_company' }),
-      ]),
-      provenance: expect.arrayContaining([
-        expect.objectContaining({ sourceId: AKSHARE_DATA_SOURCE_ID, checksum: expect.stringMatching(/^sha256:/) }),
-      ]),
-    })
+    expect(request.aois[0]?.id).toBe('osm-way-1')
+    expect(request.aois[0]?.entities).toContainEqual(
+      expect.objectContaining({ id: 'akshare-a-000001', type: 'listed_company' }),
+    )
+    const provenance = request.aois[0]?.provenance
+      .find(candidate => candidate.sourceId === AKSHARE_DATA_SOURCE_ID)
+    expect(provenance?.checksum).toMatch(/^sha256:/)
     const spawnSpec = subject.getSpawnSpec()
     expect(spawnSpec?.argv[0]).toBe('/usr/bin/python')
     expect(spawnSpec?.argv[1]).toBe('-c')
@@ -115,10 +129,42 @@ describe('gstar-data-source-akshare', () => {
     const input = JSON.parse((spawnSpec?.stdio.stdin as { data: string }).data) as {
       stationTitle: string
       maxProfiles: number
+      insecureSkipTlsVerify: boolean
       aois: Array<{ aliases: string[] }>
     }
-    expect(input).toMatchObject({ stationTitle: '北京市朝阳区', maxProfiles: 20 })
+    expect(input).toMatchObject({
+      stationTitle: '北京市朝阳区', maxProfiles: 20, insecureSkipTlsVerify: false,
+    })
     expect(input.aois[0]?.aliases).toContain('示例股份有限公司')
+  })
+
+  it('passes a configured CA bundle to Requests without disabling verification', async () => {
+    const subject = fixture('{"records":[]}', undefined, config({
+      caBundlePath: 'C:\\certificates\\enterprise-ca.pem',
+    }))
+    await subject.provider.synchronize!(SITE_ID)
+    expect(subject.getSpawnSpec()?.env).toEqual({
+      PYTHONUTF8: '1',
+      PYTHONIOENCODING: 'utf-8',
+      REQUESTS_CA_BUNDLE: 'C:\\certificates\\enterprise-ca.pem',
+    })
+  })
+
+  it('requires an explicit mutually exclusive switch for insecure bridge TLS', async () => {
+    const subject = fixture('{"records":[]}', undefined, config({
+      insecureSkipTlsVerify: true,
+    }))
+    await subject.provider.synchronize!(SITE_ID)
+    const spawnSpec = subject.getSpawnSpec()
+    const input = JSON.parse((spawnSpec?.stdio.stdin as { data: string }).data) as {
+      insecureSkipTlsVerify: boolean
+    }
+    expect(input.insecureSkipTlsVerify).toBe(true)
+    expect(spawnSpec?.argv[2]).toContain('kwargs["verify"] = False')
+    expect(() => fixture('{"records":[]}', undefined, config({
+      caBundlePath: 'enterprise-ca.pem',
+      insecureSkipTlsVerify: true,
+    }))).toThrow('mutually exclusive')
   })
 
   it('does not rewrite spatial data when no address-qualified company matches', async () => {
@@ -131,6 +177,11 @@ describe('gstar-data-source-akshare', () => {
   it.each([
     ['invalid JSON', 'not-json', {}, 'invalid JSON'],
     ['bridge failure', '', { exitCode: 1, stderr: 'akshare unavailable' }, 'akshare unavailable'],
+    [
+      'TLS certificate failure', '',
+      { exitCode: 1, stderr: 'SSLError: CERTIFICATE_VERIFY_FAILED: self-signed certificate in certificate chain' },
+      'caBundlePath',
+    ],
     ['truncated output', '{"records":[]}', { lossy: true }, 'collection limit'],
     ['invalid record', '{"records":[{"aoiId":"a","code":"1","fields":{"bad":[]}}]}', {}, 'invalid field bad'],
   ] as const)('rejects %s without patching partial data', async (_label, stdout, options, message) => {

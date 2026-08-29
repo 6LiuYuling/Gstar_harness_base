@@ -23,6 +23,10 @@ export const AKSHARE_DATA_SOURCE_ID = GstarDataSourceId('akshare-a-share')
 export interface Config {
   /** Python executable resolved through the active subprocess Provider. */
   pythonExecutable: string
+  /** PEM CA bundle passed to Python Requests; empty preserves its inherited trust configuration. */
+  caBundlePath: string
+  /** Disable certificate and hostname verification inside the isolated bridge child. */
+  insecureSkipTlsVerify: boolean
   /** Maximum matched company profiles requested in one station synchronization. */
   maxProfiles: number
   /** Complete bridge deadline in milliseconds. */
@@ -34,6 +38,8 @@ export interface Config {
 /** Loader-visible AKShare bridge configuration. */
 export const Config: z<Config> = z.object({
   pythonExecutable: z.string().required(),
+  caBundlePath: z.string().default(''),
+  insecureSkipTlsVerify: z.boolean().default(false),
   maxProfiles: z.natural().min(1).max(500).required(),
   timeoutMilliseconds: z.natural().min(1_000).max(600_000).required(),
   maxOutputBytes: z.natural().min(16_384).max(16_777_216).required(),
@@ -48,6 +54,10 @@ interface AkshareBridgeRecord {
 /** Render the actionable error tail without exposing the child environment. */
 function bridgeError(stderr: string): string {
   const message = stderr.trim()
+  if (/CERTIFICATE_VERIFY_FAILED|self[- ]signed certificate in certificate chain/iu.test(message)) {
+    return 'AKShare TLS 证书校验失败：请将企业 CA 的 PEM 文件配置为 caBundlePath，'
+      + '或在启动前设置 REQUESTS_CA_BUNDLE；仅在可信内网临时排障时设置 insecureSkipTlsVerify: true'
+  }
   return message.length === 0 ? 'AKShare bridge exited without a diagnostic' : message
 }
 
@@ -74,7 +84,7 @@ function decodeBridge(content: string): readonly AkshareBridgeRecord[] {
       throw new Error('AKShare bridge returned an invalid company record')
     }
     const fields: Record<string, GstarEntityFieldValue> = {}
-    for (const [key, field] of Object.entries(input.fields)) {
+    for (const [key, field] of Object.entries(input.fields as Record<string, unknown>)) {
       if (typeof field !== 'string' && typeof field !== 'number'
         && typeof field !== 'boolean' && field !== null) {
         throw new Error(`AKShare bridge returned an invalid field ${key}`)
@@ -101,6 +111,7 @@ async function collectCompanies(
   const input = JSON.stringify({
     stationTitle,
     maxProfiles: config.maxProfiles,
+    insecureSkipTlsVerify: config.insecureSkipTlsVerify,
     aois: spatial.aois
       .filter(aoi => aoi.category === '企' || aoi.category === '金融')
       .map(aoi => ({
@@ -122,7 +133,11 @@ async function collectCompanies(
     },
     graceMs: 5_000,
     signal: controller.signal,
-    env: { PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
+    env: {
+      PYTHONUTF8: '1',
+      PYTHONIOENCODING: 'utf-8',
+      ...(config.caBundlePath.length === 0 ? {} : { REQUESTS_CA_BUNDLE: config.caBundlePath }),
+    },
   })
   try {
     const outcome = await handle.done
@@ -183,8 +198,12 @@ async function synchronize(ctx: Context, config: Config, workspaceId: WorkspaceI
  * @param ctx - Host context carrying source, station, spatial, and subprocess capabilities.
  * @param config - Validated Python bridge limits.
  * @returns disposer for the exact live source contribution.
+ * @throws when a CA bundle and disabled TLS verification are configured together.
  */
 export function apply(ctx: Context, config: Config): () => void {
+  if (config.caBundlePath.length > 0 && config.insecureSkipTlsVerify) {
+    throw new Error('gstar-data-source-akshare: caBundlePath and insecureSkipTlsVerify are mutually exclusive')
+  }
   return ctx.gstarDataSources.register({
     descriptor: {
       id: AKSHARE_DATA_SOURCE_ID,

@@ -67,16 +67,36 @@ def json_value(value: object) -> str | int | float | bool | None:
     return text or None
 
 
+def configure_tls(insecure_skip_tls_verify: bool) -> None:
+    """Apply the explicit insecure policy only inside this isolated bridge process."""
+    if not insecure_skip_tls_verify:
+        return
+    import requests
+
+    verified_request = requests.sessions.Session.request
+
+    def unverified_request(
+        session: requests.Session, method: str, url: str, **kwargs: Any
+    ) -> requests.Response:
+        kwargs["verify"] = False
+        return verified_request(session, method, url, **kwargs)
+
+    requests.sessions.Session.request = unverified_request
+
+
 def main() -> None:
     """Read one bridge request from stdin and emit matched company records as JSON."""
     request = json.load(sys.stdin)
     aois = request.get("aois")
     station_title = request.get("stationTitle")
     max_profiles = request.get("maxProfiles")
+    insecure_skip_tls_verify = request.get("insecureSkipTlsVerify")
     if not isinstance(aois, list) or not isinstance(station_title, str) \
-            or not isinstance(max_profiles, int) or max_profiles < 1:
+            or not isinstance(max_profiles, int) or max_profiles < 1 \
+            or not isinstance(insecure_skip_tls_verify, bool):
         raise ValueError("invalid AKShare bridge request")
 
+    configure_tls(insecure_skip_tls_verify)
     try:
         import akshare as ak
     except ImportError as error:
@@ -133,5 +153,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        print(f"{type(error).__name__}: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
 `

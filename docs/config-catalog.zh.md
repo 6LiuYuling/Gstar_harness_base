@@ -706,6 +706,60 @@ export interface Config {
 
 来源：[`packages/goal/goal/src/index.ts:116`](../packages/goal/goal/src/index.ts)
 
+<a id="deepseek-aidsh-gstar-data-source-akshare"></a>
+
+## `@deepseek-ai/dsh-gstar-data-source-akshare`
+
+需要：`gstarDataSources` · `gstarSites` · `gstarSpatial` · `subprocess`
+
+```ts config-catalog
+/** Deployment controls for the bundled AKShare bridge process. */
+export interface Config {
+  /** Python executable resolved through the active subprocess Provider. */
+  pythonExecutable: string
+  /** PEM CA bundle passed to Python Requests; empty preserves its inherited trust configuration. */
+  caBundlePath: string
+  /** Disable certificate and hostname verification inside the isolated bridge child. */
+  insecureSkipTlsVerify: boolean
+  /** Maximum matched company profiles requested in one station synchronization. */
+  maxProfiles: number
+  /** Complete bridge deadline in milliseconds. */
+  timeoutMilliseconds: number
+  /** Per-stream in-memory collection limit in bytes. */
+  maxOutputBytes: number
+}
+```
+
+来源：[`packages/gstar/data-source-akshare/src/index.ts:23`](../packages/gstar/data-source-akshare/src/index.ts)
+
+<a id="deepseek-aidsh-gstar-data-source-reference"></a>
+
+## `@deepseek-ai/dsh-gstar-data-source-reference`
+
+需要：`gstarDataSources`
+
+```ts config-catalog
+/** Configuration for one authoritative public reference plugin instance. */
+export interface Config {
+  /** Stable source identity. */
+  id: string
+  /** Human-readable platform or dataset name. */
+  name: string
+  /** Publishing organization. */
+  publisher: string
+  /** Public platform entry point. */
+  url: string
+  /** GSTAR categories verified by this reference. */
+  categories: GstarAoiCategory[]
+  /** Whether newly classified stations admit this reference before an explicit override. */
+  defaultEnabled: boolean
+}
+```
+
+依赖：[`GstarAoiCategory`](subsystems/gstar.zh.md)
+
+来源：[`packages/gstar/data-source-reference/src/index.ts:14`](../packages/gstar/data-source-reference/src/index.ts)
+
 <a id="deepseek-aidsh-gstar-spatial-storage"></a>
 
 ## `@deepseek-ai/dsh-gstar-spatial-storage`
@@ -719,14 +773,20 @@ export interface Config {
   overpassEndpoint?: string
   /** Overpass server-side query timeout in seconds. */
   overpassTimeoutSeconds?: number
-  /** Maximum elements requested and published by one refresh. */
+  /** Maximum elements per Overpass request before the bounds are subdivided. */
   overpassMaxElements?: number
+  /** Minimum pause after one Overpass response before the next request starts. */
+  overpassRequestIntervalMilliseconds?: number
+  /** Initial pause after HTTP 429; each subsequent retry doubles this value. */
+  overpassRetryDelayMilliseconds?: number
+  /** Number of retries after an Overpass HTTP 429 response. */
+  overpassMaxRetries?: number
   /** Search radius used when a station has a marker but no boundary. */
   fallbackRadiusMeters?: number
 }
 ```
 
-来源：[`packages/gstar/spatial-storage/src/index.ts:39`](../packages/gstar/spatial-storage/src/index.ts)
+来源：[`packages/gstar/spatial-storage/src/index.ts:43`](../packages/gstar/spatial-storage/src/index.ts)
 
 <a id="deepseek-aidsh-headless"></a>
 
@@ -3265,6 +3325,8 @@ export interface Config {
 - `@deepseek-ai/dsh-goal-round-driver` — 需要 `agents` · `goals` · `sessions`（[`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts)）
 - `@deepseek-ai/dsh-gstar-cesium-assets` — 需要 `webServer`（[`packages/gstar/cesium-assets/src/index.ts`](../packages/gstar/cesium-assets/src/index.ts)）
 - `@deepseek-ai/dsh-gstar-client-remotes`（[`packages/gstar/client-remotes/src/index.ts`](../packages/gstar/client-remotes/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-data-source-osm` — 需要 `gstarDataSources` · `gstarSpatial`（[`packages/gstar/data-source-osm/src/index.ts`](../packages/gstar/data-source-osm/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-data-source-storage` — 需要 `storageDomain` · `gstarSites`（[`packages/gstar/data-source-storage/src/index.ts`](../packages/gstar/data-source-storage/src/index.ts)）
 - `@deepseek-ai/dsh-gstar-site-workspace` — 需要 `workspaceRegistry` · `storageDomain`（[`packages/gstar/site-workspace/src/index.ts`](../packages/gstar/site-workspace/src/index.ts)）
 - `@deepseek-ai/dsh-gstar-tool-spatial-query` — 需要 `tools` · `gstarSites` · `gstarSpatial`（[`packages/gstar/tool-spatial-query/src/index.ts`](../packages/gstar/tool-spatial-query/src/index.ts)）
 - `@deepseek-ai/dsh-host-directory-picker-auto` — 需要 `webServer` · `loader`（[`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts)）
@@ -3300,6 +3362,7 @@ export interface Config {
 - `@deepseek-ai/dsh-credentials` — 抽象 `Credentials`（[`packages/credentials/credentials/src/index.ts`](../packages/credentials/credentials/src/index.ts)）
 - `@deepseek-ai/dsh-file-reference` — 抽象 `FileReferenceService`（[`packages/context/file-reference/src/index.ts`](../packages/context/file-reference/src/index.ts)）
 - `@deepseek-ai/dsh-fs` — 抽象 `FileSystem`（[`packages/fs/fs/src/index.ts`](../packages/fs/fs/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-data-source` — 抽象 `GstarDataSourceService`（[`packages/gstar/data-source/src/index.ts`](../packages/gstar/data-source/src/index.ts)）
 - `@deepseek-ai/dsh-gstar-site` — 抽象 `GstarSiteService`（[`packages/gstar/site/src/index.ts`](../packages/gstar/site/src/index.ts)）
 - `@deepseek-ai/dsh-gstar-spatial` — 抽象 `GstarSpatialService`（[`packages/gstar/spatial/src/index.ts`](../packages/gstar/spatial/src/index.ts)）
 - `@deepseek-ai/dsh-host-directory-picker` — 抽象 `DirectoryPicker`（[`packages/host/directory-picker/src/index.ts`](../packages/host/directory-picker/src/index.ts)）
