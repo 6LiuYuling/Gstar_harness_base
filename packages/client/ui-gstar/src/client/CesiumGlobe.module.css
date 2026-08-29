@@ -5,13 +5,6 @@
   background: var(--dsw-alias-bg-base);
   --gstar-map-site: var(--dsw-alias-state-business-primary);
   --gstar-map-site-outline: var(--dsw-alias-bg-base);
-  --gstar-map-aoi-government: #ff5e72;
-  --gstar-map-aoi-enterprise: #ff9f43;
-  --gstar-map-aoi-finance: #ffd166;
-  --gstar-map-aoi-education: #35c2ff;
-  --gstar-map-aoi-medical: #ff70c5;
-  --gstar-map-aoi-shopping: #a78bfa;
-  --gstar-map-aoi-residential: #52d273;
   --gstar-map-label: var(--dsw-alias-label-primary);
 }
 

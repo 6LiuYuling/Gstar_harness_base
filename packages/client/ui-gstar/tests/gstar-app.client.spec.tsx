@@ -371,6 +371,19 @@ describe('GstarApp three-column shell', () => {
     const map = screen.getByLabelText('GSTAR Cesium 地图')
     expect(screen.getByRole('group', { name: 'AOI 类型筛选' })).toBeTruthy()
     expect(screen.getByRole('button', { name: /^全选1$/u }).getAttribute('aria-pressed')).toBe('true')
+    const legendVariables = {
+      '政': '--gstar-map-aoi-government',
+      '企': '--gstar-map-aoi-enterprise',
+      '金融': '--gstar-map-aoi-finance',
+      '教育': '--gstar-map-aoi-education',
+      '医疗': '--gstar-map-aoi-medical',
+      '商场': '--gstar-map-aoi-shopping',
+      '居民区': '--gstar-map-aoi-residential',
+    }
+    for (const [category, property] of Object.entries(legendVariables)) {
+      const filter = screen.getByRole('button', { name: new RegExp(`^${category}\\d+$`, 'u') })
+      expect(filter.style.getPropertyValue('--gstar-aoi-color')).toBe(`var(${property})`)
+    }
     expect(map.getAttribute('data-visible-categories')).toContain('政')
 
     fireEvent.click(screen.getByRole('button', { name: '选择 AOI' }))

@@ -6,6 +6,7 @@ import type {
   GstarAoiCategory, GstarLinearRing, GstarSpatialSnapshot,
 } from '@deepseek-ai/dsh-gstar-spatial/types'
 import type { GstarSiteSnapshot } from '@deepseek-ai/dsh-gstar-site/types'
+import { AOI_COLOR_PROPERTIES } from './aoi-palette.ts'
 import css from './CesiumGlobe.module.css'
 
 const CESIUM_ASSET_BASE = '/gstar/cesium/'
@@ -178,13 +179,13 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
     )
     const labelColor = canvasColor(Cesium, colorRoot, '--gstar-map-label', Cesium.Color.WHITE)
     const aoiColors: Readonly<Record<GstarAoiCategory, import('cesium').Color>> = {
-      '政': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-government', Cesium.Color.RED),
-      '企': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-enterprise', Cesium.Color.ORANGE),
-      '金融': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-finance', Cesium.Color.GOLD),
-      '教育': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-education', Cesium.Color.CYAN),
-      '医疗': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-medical', Cesium.Color.HOTPINK),
-      '商场': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-shopping', Cesium.Color.VIOLET),
-      '居民区': canvasColor(Cesium, colorRoot, '--gstar-map-aoi-residential', Cesium.Color.LIME),
+      '政': canvasColor(Cesium, colorRoot, AOI_COLOR_PROPERTIES['政'], Cesium.Color.RED),
+      '企': canvasColor(Cesium, colorRoot, AOI_COLOR_PROPERTIES['企'], Cesium.Color.ORANGE),
+      '金融': canvasColor(Cesium, colorRoot, AOI_COLOR_PROPERTIES['金融'], Cesium.Color.GOLD),
+      '教育': canvasColor(Cesium, colorRoot, AOI_COLOR_PROPERTIES['教育'], Cesium.Color.CYAN),
+      '医疗': canvasColor(Cesium, colorRoot, AOI_COLOR_PROPERTIES['医疗'], Cesium.Color.HOTPINK),
+      '商场': canvasColor(Cesium, colorRoot, AOI_COLOR_PROPERTIES['商场'], Cesium.Color.VIOLET),
+      '居民区': canvasColor(Cesium, colorRoot, AOI_COLOR_PROPERTIES['居民区'], Cesium.Color.LIME),
     }
     const spatialById = new Map(props.spatial.map(item => [item.workspaceId, item]))
     let selectedMarker: Entity | undefined

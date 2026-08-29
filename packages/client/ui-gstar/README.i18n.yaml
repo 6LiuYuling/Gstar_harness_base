@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-gstar/README.md
-README.md: 9afb0eff2aff291d104d8bdf12c27468d44be798
-README.zh.md: fc9af7e90beb647119ec577f51a1080b58188edc
+README.md: 67e62c35d19a56e824c26cca25d9741a2ff93486
+README.zh.md: 2ef3e7a90fc24df43bb4a44584d46a75197cd350

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
   HostObservable, PropsHooks, PropsRenderSlots, PropsRuntime, PropsStore,
@@ -19,13 +19,10 @@ import { CesiumGlobe, type GstarMapMode } from './CesiumGlobe.tsx'
 import type { GstarSiteListState } from './site-runtime.ts'
 import type { GstarSourceListState, GstarSpatialListState } from './spatial-runtime.ts'
 import type { createGstarStore } from './stores.ts'
+import { AOI_CATEGORIES, AOI_COLOR_PROPERTIES } from './aoi-palette.ts'
 import css from './GstarApp.module.css'
 
 type GstarRootChildSlot = DirectoryFlowSlotName | 'conversation' | 'details' | 'shell.overlay'
-
-const AOI_CATEGORIES: readonly GstarAoiCategory[] = [
-  '政', '企', '金融', '教育', '医疗', '商场', '居民区',
-]
 
 /** GSTAR business actions and live projections supplied by the registering Client plugin. */
 export interface GstarAppInjected {
@@ -459,7 +456,11 @@ export function GstarApp({
                   <button
                     type="button"
                     key={category}
+                    data-aoi-category={category}
                     aria-pressed={visibleCategories.has(category)}
+                    style={{
+                      '--gstar-aoi-color': `var(${AOI_COLOR_PROPERTIES[category]})`,
+                    } as CSSProperties}
                     onClick={() => {
                       setVisibleCategories((current) => {
                         const next = new Set(current)
@@ -474,6 +475,7 @@ export function GstarApp({
                 ))}
                 <button
                   type="button"
+                  data-aoi-all
                   aria-pressed={allCategoriesSelected}
                   onClick={() => {
                     setVisibleCategories(allCategoriesSelected ? new Set() : new Set(AOI_CATEGORIES))
