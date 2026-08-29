@@ -36,6 +36,7 @@ const AOI_CATEGORIES: readonly GstarAoiCategory[] = [
 ]
 
 const AOI_CATEGORY_SET: ReadonlySet<string> = new Set(AOI_CATEGORIES)
+const OVERPASS_MAX_SUBDIVISION_DEPTH = 4
 
 /** Provider configuration for bounded public OpenStreetMap acquisition. */
 export interface Config {
@@ -43,7 +44,7 @@ export interface Config {
   overpassEndpoint?: string
   /** Overpass server-side query timeout in seconds. */
   overpassTimeoutSeconds?: number
-  /** Maximum elements requested and published by one refresh. */
+  /** Maximum elements per Overpass request before the bounds are subdivided. */
   overpassMaxElements?: number
   /** Search radius used when a station has a marker but no boundary. */
   fallbackRadiusMeters?: number
@@ -79,6 +80,11 @@ interface QueryBounds {
   readonly west: number
   readonly north: number
   readonly east: number
+}
+
+interface DecodedOverpass {
+  readonly aois: readonly GstarAoiSnapshot[]
+  readonly elementCount: number
 }
 
 interface NominatimResult {
@@ -386,6 +392,18 @@ function overpassUrl(bounds: QueryBounds, config: ResolvedConfig): URL {
   return url
 }
 
+/** Split a saturated query envelope into south-west, south-east, north-west, and north-east tiles. */
+function subdivideBounds(bounds: QueryBounds): readonly QueryBounds[] {
+  const latitudeMiddle = (bounds.south + bounds.north) / 2
+  const longitudeMiddle = (bounds.west + bounds.east) / 2
+  return [
+    { south: bounds.south, west: bounds.west, north: latitudeMiddle, east: longitudeMiddle },
+    { south: bounds.south, west: longitudeMiddle, north: latitudeMiddle, east: bounds.east },
+    { south: latitudeMiddle, west: bounds.west, north: bounds.north, east: longitudeMiddle },
+    { south: latitudeMiddle, west: longitudeMiddle, north: bounds.north, east: bounds.east },
+  ]
+}
+
 /** Keep only string-valued OSM tags at the untyped JSON boundary. */
 function overpassTags(value: unknown): Readonly<Record<string, string>> | undefined {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined
@@ -639,8 +657,8 @@ const ENTITY_TYPES: Readonly<Record<GstarAoiCategory, string>> = {
   '居民区': 'residential_area',
 }
 
-/** Decode a bounded Overpass JSON response into durable AOIs with per-feature provenance. */
-function decodeOverpass(content: string, retrievedAt: string, maxElements: number): readonly GstarAoiSnapshot[] {
+/** Decode a bounded Overpass JSON response and retain its raw count for saturation detection. */
+function decodeOverpass(content: string, retrievedAt: string): DecodedOverpass {
   const value = decodeJson(content) as OverpassResponse | null
   if (value === null || typeof value !== 'object' || !Array.isArray(value.elements)) {
     throw new Error('GSTAR Overpass returned a payload without an elements array')
@@ -682,9 +700,8 @@ function decodeOverpass(content: string, retrievedAt: string, maxElements: numbe
       }],
       updatedAt: retrievedAt,
     })
-    if (aois.length >= maxElements) break
   }
-  return aois
+  return { aois, elementCount: value.elements.length }
 }
 
 /** Render the actionable portion of a fetch cause chain across the Remote boundary. */
@@ -915,6 +932,36 @@ export class StorageGstarSpatialService extends GstarSpatialService {
     throw new Error('局点自动定位未获得任何提供方响应')
   }
 
+  /** Fetch complete AOI coverage, recursively tiling any response that reaches the per-request cap. */
+  private async collectOverpassAois(
+    bounds: QueryBounds, retrievedAt: string, depth = 0,
+  ): Promise<readonly GstarAoiSnapshot[]> {
+    const url = overpassUrl(bounds, this.config)
+    let result
+    try {
+      result = await this.ctx.web.fetch({ url: url.href })
+    } catch (cause) {
+      throw new Error(`OpenStreetMap AOI 获取失败：${errorChain(cause)}`, { cause })
+    }
+    if (result.statusCode < 200 || result.statusCode >= 300) {
+      throw new Error(`OpenStreetMap AOI 获取失败：Overpass HTTP ${String(result.statusCode)}`)
+    }
+    if (result.truncated) {
+      throw new Error('OpenStreetMap AOI 获取失败：Overpass 响应超过 DSH Web 获取上限')
+    }
+    const decoded = decodeOverpass(result.body.content, retrievedAt)
+    if (decoded.elementCount < this.config.overpassMaxElements) return decoded.aois
+    /* v8 ignore next -- the depth guard needs repeatedly saturated public responses to reach. */
+    if (depth >= OVERPASS_MAX_SUBDIVISION_DEPTH) {
+      throw new Error('OpenStreetMap AOI 获取失败：局点 AOI 密度过高，细分查询仍达到返回上限')
+    }
+    const merged = new Map<string, GstarAoiSnapshot>()
+    for (const tile of subdivideBounds(bounds)) {
+      for (const aoi of await this.collectOverpassAois(tile, retrievedAt, depth + 1)) merged.set(aoi.id, aoi)
+    }
+    return [...merged.values()]
+  }
+
   override async refreshAois(request: GstarSpatialRefreshAoisRequest): Promise<GstarSpatialSnapshot> {
     const sites = await this.ctx.gstarSites.list()
     if (!sites.some(site => site.workspaceId === request.workspaceId)) {
@@ -930,21 +977,8 @@ export class StorageGstarSpatialService extends GstarSpatialService {
     if (bounds === undefined) {
       throw new Error('请先完成局点自动定位，再从 OpenStreetMap 获取 AOI')
     }
-    const url = overpassUrl(bounds, this.config)
-    let result
-    try {
-      result = await this.ctx.web.fetch({ url: url.href })
-    } catch (cause) {
-      throw new Error(`OpenStreetMap AOI 获取失败：${errorChain(cause)}`, { cause })
-    }
-    if (result.statusCode < 200 || result.statusCode >= 300) {
-      throw new Error(`OpenStreetMap AOI 获取失败：Overpass HTTP ${String(result.statusCode)}`)
-    }
-    if (result.truncated) {
-      throw new Error('OpenStreetMap AOI 获取失败：Overpass 响应超过 DSH Web 获取上限')
-    }
     const retrievedAt = new Date().toISOString()
-    const decodedAois = decodeOverpass(result.body.content, retrievedAt, this.config.overpassMaxElements)
+    const decodedAois = await this.collectOverpassAois(bounds, retrievedAt)
     const aois = boundary === undefined
       ? decodedAois
       : decodedAois.filter(aoi => geometriesIntersect(aoi.geometry, boundary))

@@ -61,7 +61,7 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
     await writeFile(configPath, [
       "- name: '@deepseek-ai/dsh-gstar-spatial-storage'",
       '  config:',
-      '    overpassMaxElements: 7',
+      '    overpassMaxElements: 50',
       '',
     ].join('\n'))
 
@@ -290,6 +290,46 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
     expect(overpassRequest.searchParams.get('data')).toContain('["amenity"')
     expect(put).toHaveBeenCalledTimes(4)
 
+    const tiledWay = (id: number, name: string, tags: Readonly<Record<string, string>>, lon: number, lat: number) => ({
+      type: 'way',
+      id,
+      tags: { name, ...tags },
+      geometry: [
+        { lon, lat }, { lon: lon + 0.01, lat },
+        { lon: lon + 0.01, lat: lat + 0.01 }, { lon, lat },
+      ],
+    })
+    const saturatedElements = Array.from(
+      { length: 50 },
+      (_, index) => tiledWay(9_000 + index, `饱和批次 ${String(index)}`, { amenity: 'bank' }, 113.2, 23.1),
+    )
+    const southWestAoi = tiledWay(3_101, '西南金融机构', { amenity: 'bank' }, 113.2, 23.1)
+    const southEastAoi = tiledWay(3_102, '东南学校', { amenity: 'school' }, 113.7, 23.1)
+    const northEastAoi = tiledWay(3_103, '东北医院', { amenity: 'hospital' }, 113.8, 23.7)
+    fetch
+      .mockResolvedValueOnce(response(JSON.stringify({ elements: saturatedElements })))
+      .mockResolvedValueOnce(response(JSON.stringify({ elements: [southWestAoi] })))
+      .mockResolvedValueOnce(response(JSON.stringify({ elements: [southWestAoi, southEastAoi] })))
+      .mockResolvedValueOnce(response(JSON.stringify({ elements: [] })))
+      .mockResolvedValueOnce(response(JSON.stringify({ elements: [northEastAoi] })))
+    const tiledCallStart = fetch.mock.calls.length
+    const tiled = await context.gstarSpatial.refreshAois({ workspaceId: SITE_ID })
+    expect(tiled.aois.map(aoi => aoi.id)).toEqual([
+      'osm-way-3101', 'osm-way-3102', 'osm-way-3103',
+    ])
+    const tiledQueries = fetch.mock.calls.slice(tiledCallStart).map(call => (
+      new URL(call[0].url).searchParams.get('data')
+    ))
+    expect(tiledQueries).toHaveLength(5)
+    expect(tiledQueries[0]).toContain('(23,113,24,114)')
+    expect(tiledQueries.slice(1)).toEqual(expect.arrayContaining([
+      expect.stringContaining('(23,113,23.5,113.5)'),
+      expect.stringContaining('(23,113.5,23.5,114)'),
+      expect.stringContaining('(23.5,113,24,113.5)'),
+      expect.stringContaining('(23.5,113.5,24,114)'),
+    ]))
+    expect(put).toHaveBeenCalledTimes(5)
+
     fetch.mockResolvedValueOnce({
       url: 'https://overpass-api.de/api/interpreter',
       statusCode: 200,
@@ -446,7 +486,7 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
     expect(classified.aois[0]?.geometry.type).toBe('Polygon')
     expect(classified.aois[0]?.geometry.coordinates).toHaveLength(2)
     expect(classified.aois[1]?.geometry.type).toBe('MultiPolygon')
-    expect(put).toHaveBeenCalledTimes(5)
+    expect(put).toHaveBeenCalledTimes(6)
 
     await expect(context.gstarSpatial.refreshAois({ workspaceId: ORDINARY_ID }))
       .rejects.toThrow('is not a GSTAR station')
@@ -500,19 +540,19 @@ describe('gstar-spatial-storage through a real Loader composition', () => {
       .resolves.not.toHaveProperty('boundary')
     const photonRequest = fetch.mock.calls.at(-1)?.[0]
     expect(new URL(photonRequest?.url ?? 'https://invalid.local').hostname).toBe('photon.komoot.io')
-    expect(put).toHaveBeenCalledTimes(6)
+    expect(put).toHaveBeenCalledTimes(7)
 
     fetch.mockResolvedValueOnce({
       url: 'https://overpass-api.de/api/interpreter', statusCode: 200,
       body: { kind: 'text', content: '{"elements":[]}' }, truncated: false,
     })
     await expect(context.gstarSpatial.refreshAois({ workspaceId: SITE_ID })).resolves.toMatchObject({ aois: [] })
-    expect(put).toHaveBeenCalledTimes(7)
+    expect(put).toHaveBeenCalledTimes(8)
 
     fetch.mockRejectedValue(new Error('web fetch failed', { cause: new Error('ECONNRESET') }))
     await expect(context.gstarSpatial.locate({ workspaceId: SITE_ID, query: '广州局点' }))
       .rejects.toThrow(/Nominatim.*Photon.*ECONNRESET/u)
-    expect(put).toHaveBeenCalledTimes(7)
+    expect(put).toHaveBeenCalledTimes(8)
 
     const fallbackGeometry = [
       { lon: 113, lat: 23 }, { lon: 113.1, lat: 23 },
