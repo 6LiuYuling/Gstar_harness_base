@@ -74,8 +74,8 @@ function fixture(stdout: string, options?: Parameters<typeof handle>[1], config:
   let provider: GstarDataSourceProvider | undefined
   let spawnSpec: SubprocessSpawnSpec | undefined
   const patch = vi.fn(async (request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot> => ({
-    ...SPATIAL,
-    ...request,
+    workspaceId: request.workspaceId,
+    aois: request.aois ?? SPATIAL.aois,
   }))
   const spawn = vi.fn((spec: SubprocessSpawnSpec) => {
     spawnSpec = spec
@@ -114,11 +114,12 @@ describe('gstar-data-source-akshare', () => {
     await expect(subject.provider.synchronize!(SITE_ID))
       .resolves.toBe('已为 1 个企业 AOI 补充 A 股上市公司资料')
     const request = subject.patch.mock.calls[0]![0]
-    expect(request.aois[0]?.id).toBe('osm-way-1')
-    expect(request.aois[0]?.entities).toContainEqual(
+    const aois = request.aois ?? []
+    expect(aois[0]?.id).toBe('osm-way-1')
+    expect(aois[0]?.entities).toContainEqual(
       expect.objectContaining({ id: 'akshare-a-000001', type: 'listed_company' }),
     )
-    const provenance = request.aois[0]?.provenance
+    const provenance = aois[0]?.provenance
       .find(candidate => candidate.sourceId === AKSHARE_DATA_SOURCE_ID)
     expect(provenance?.checksum).toMatch(/^sha256:/)
     const spawnSpec = subject.getSpawnSpec()
