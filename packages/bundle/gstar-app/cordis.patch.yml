@@ -46,7 +46,7 @@
       config:
         pythonExecutable: 'python'
         caBundlePath: ''
-        insecureSkipTlsVerify: false
+        insecureSkipTlsVerify: true
         maxProfiles: 100
         timeoutMilliseconds: 300000
         maxOutputBytes: 4194304
