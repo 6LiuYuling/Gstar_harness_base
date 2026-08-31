@@ -721,6 +721,10 @@ export interface Config {
   caBundlePath: string
   /** Disable certificate and hostname verification inside the isolated bridge child. */
   insecureSkipTlsVerify: boolean
+  /** Maximum retries after each transient upstream request failure. */
+  requestMaxRetries: number
+  /** Delay in milliseconds between upstream request attempts. */
+  requestRetryDelayMilliseconds: number
   /** Maximum matched company profiles requested in one station synchronization. */
   maxProfiles: number
   /** Complete bridge deadline in milliseconds. */

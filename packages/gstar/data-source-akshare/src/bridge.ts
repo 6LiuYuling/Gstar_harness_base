@@ -7,6 +7,7 @@ import contextlib
 import json
 import re
 import sys
+import time
 from typing import Any
 
 
@@ -84,6 +85,84 @@ def configure_tls(insecure_skip_tls_verify: bool) -> None:
     requests.sessions.Session.request = unverified_request
 
 
+class RemoteRequestError(RuntimeError):
+    """Identify an exhausted upstream request without exposing a Python traceback."""
+
+
+def request_with_retry(
+    label: str,
+    operation: Any,
+    request_max_retries: int,
+    request_retry_delay_milliseconds: int,
+) -> Any:
+    """Retry transient transport failures before reporting one concise upstream error."""
+    import requests
+
+    retryable = (
+        requests.exceptions.RequestException,
+        ConnectionError,
+        TimeoutError,
+        OSError,
+    )
+    for attempt in range(request_max_retries + 1):
+        try:
+            return operation()
+        except retryable as error:
+            if attempt >= request_max_retries:
+                raise RemoteRequestError(f"{label}连接失败：{error}") from error
+            print(
+                f"{label}连接失败，等待 {request_retry_delay_milliseconds} ms 后重试",
+                file=sys.stderr,
+            )
+            time.sleep(request_retry_delay_milliseconds / 1000)
+    raise AssertionError("request retry loop did not return or raise")
+
+
+def stock_candidates(frame: Any) -> list[tuple[str, str]]:
+    """Normalize code and name columns from exchange or Eastmoney list frames."""
+    candidates: dict[str, str] = {}
+    for row in frame.to_dict(orient="records"):
+        raw_code = row.get("code", row.get("代码", ""))
+        raw_name = row.get("name", row.get("名称", ""))
+        code = re.sub(r"^(?:SH|SZ|BJ)", "", str(raw_code).strip(), flags=re.IGNORECASE)
+        short_name = str(raw_name).strip()
+        if code and short_name:
+            candidates.setdefault(code, short_name)
+    return list(candidates.items())
+
+
+def load_stock_candidates(
+    ak: Any,
+    request_max_retries: int,
+    request_retry_delay_milliseconds: int,
+) -> list[tuple[str, str]]:
+    """Use an independent complete A-share list when the exchange aggregate is unavailable."""
+    sources = (
+        ("沪深京交易所股票列表", "stock_info_a_code_name"),
+        ("东方财富沪深京 A 股列表", "stock_zh_a_spot_em"),
+    )
+    failures: list[str] = []
+    for label, function_name in sources:
+        try:
+            operation = getattr(ak, function_name)
+            frame = request_with_retry(
+                label,
+                operation,
+                request_max_retries,
+                request_retry_delay_milliseconds,
+            )
+            candidates = stock_candidates(frame)
+            if not candidates:
+                raise ValueError("返回结果没有股票代码和名称")
+            if failures:
+                print(f"已切换到 {label}", file=sys.stderr)
+            return candidates
+        except Exception as error:
+            failures.append(f"{label}: {type(error).__name__}: {error}")
+            print(f"{label}不可用", file=sys.stderr)
+    raise RuntimeError(f"AKShare 股票列表不可用：{'；'.join(failures)}")
+
+
 def main() -> None:
     """Read one bridge request from stdin and emit matched company records as JSON."""
     request = json.load(sys.stdin)
@@ -91,9 +170,16 @@ def main() -> None:
     station_title = request.get("stationTitle")
     max_profiles = request.get("maxProfiles")
     insecure_skip_tls_verify = request.get("insecureSkipTlsVerify")
+    request_max_retries = request.get("requestMaxRetries")
+    request_retry_delay_milliseconds = request.get("requestRetryDelayMilliseconds")
     if not isinstance(aois, list) or not isinstance(station_title, str) \
-            or not isinstance(max_profiles, int) or max_profiles < 1 \
-            or not isinstance(insecure_skip_tls_verify, bool):
+            or type(max_profiles) is not int or max_profiles < 1 \
+            or not isinstance(insecure_skip_tls_verify, bool) \
+            or type(request_max_retries) is not int \
+            or request_max_retries < 0 or request_max_retries > 5 \
+            or type(request_retry_delay_milliseconds) is not int \
+            or request_retry_delay_milliseconds < 100 \
+            or request_retry_delay_milliseconds > 60000:
         raise ValueError("invalid AKShare bridge request")
 
     configure_tls(insecure_skip_tls_verify)
@@ -105,13 +191,11 @@ def main() -> None:
         ) from error
 
     with contextlib.redirect_stdout(sys.stderr):
-        stocks = ak.stock_info_a_code_name()
-    candidates: list[tuple[str, str]] = []
-    for row in stocks.to_dict(orient="records"):
-        code = str(row.get("code", "")).strip()
-        short_name = str(row.get("name", "")).strip()
-        if code and short_name:
-            candidates.append((code, short_name))
+        candidates = load_stock_candidates(
+            ak,
+            request_max_retries,
+            request_retry_delay_milliseconds,
+        )
 
     records: list[dict[str, Any]] = []
     attempted_codes: set[str] = set()
@@ -135,7 +219,12 @@ def main() -> None:
             break
         attempted_codes.add(code)
         with contextlib.redirect_stdout(sys.stderr):
-            profile_frame = ak.stock_profile_cninfo(symbol=code)
+            profile_frame = request_with_retry(
+                f"巨潮资讯公司概况 {code}",
+                lambda: ak.stock_profile_cninfo(symbol=code),
+                request_max_retries,
+                request_retry_delay_milliseconds,
+            )
         if profile_frame.empty:
             continue
         profile = profile_frame.iloc[0].to_dict()

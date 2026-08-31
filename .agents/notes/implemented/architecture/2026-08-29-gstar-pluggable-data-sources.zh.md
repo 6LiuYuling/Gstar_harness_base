@@ -20,7 +20,7 @@ Status: implemented
 
 GSTAR Profile 加载默认启用的 OpenStreetMap 直接 AOI／实体插件、默认关闭的 AkShare 直接实体插件，并把每个官方平台作为独立配置的参考插件行。更高层 Profile 可以移除、增加或替换这些行，而无需修改注册表或 UI。
 
-AkShare 增强现有企业或金融 AOI，不创建几何。其有界 Python bridge 使用 AOI 名称和别名匹配 A 股名称，获取对应巨潮资讯公司概况，并且只有注册地址或办公地址包含局点名称中全部可用市、区 token 时才接纳记录。Bridge 校验完成后，一次完整空间 patch 增加 `listed_company` 实体和来源溯源。TLS 校验默认严格启用：部署可以提供 Requests CA bundle；与其互斥的显式不安全开关只影响隔离 bridge 子进程。连接器不会混并集团母公司与上市子公司，也不会接纳相邻行政区地址。
+AkShare 增强现有企业或金融 AOI，不创建几何。其有界 Python bridge 使用 AOI 名称和别名匹配 A 股名称，对瞬时上游失败执行重试，并在需要使用独立主机时从交易所聚合列表切换到 AkShare 提供的完整东方财富 A 股列表。它在相同重试边界内获取对应巨潮资讯公司概况，并且只有注册地址或办公地址包含局点名称中全部可用市、区 token 时才接纳记录。Bridge 校验完成后，一次完整空间 patch 增加 `listed_company` 实体和来源溯源。TLS 校验默认严格启用：部署可以提供 Requests CA bundle；与其互斥的显式不安全开关只影响隔离 bridge 子进程。连接器不会混并集团母公司与上市子公司，也不会接纳相邻行政区地址。
 
 ## Alternatives considered
 
@@ -36,7 +36,7 @@ AkShare 增强现有企业或金融 AOI，不创建几何。其有界 Python bri
 
 ## Verification
 
-Service 与 Loader 组合测试覆盖 Remote 委托、实时来源注册、默认和覆盖启用状态、局点拒绝、已停用和只读参考执行、OSM 委托、删除回滚与 dispose。来源测试覆盖参考 URL 校验、OSM 摘要、AkShare 子进程边界、严格与自定义 CA 的 TLS 配置、显式不安全隔离、简洁证书诊断、输出校验、失败不部分写入、实体溯源，以及局点或空间投影缺失。Client 测试覆盖三个 Remote 挂载、逐局点过期加载保护、开关与同步错误、OSM 策略路由和来源管理控件。
+Service 与 Loader 组合测试覆盖 Remote 委托、实时来源注册、默认和覆盖启用状态、局点拒绝、已停用和只读参考执行、OSM 委托、删除回滚与 dispose。来源测试覆盖参考 URL 校验、OSM 摘要、AkShare 子进程与请求重试边界、交易所列表回退、严格与自定义 CA 的 TLS 配置、显式不安全隔离、简洁传输与证书诊断、输出校验、失败不部分写入、实体溯源，以及局点或空间投影缺失。Client 测试覆盖三个 Remote 挂载、逐局点过期加载保护、开关与同步错误、OSM 策略路由和来源管理控件。
 
 ## Consequences
 

@@ -11,6 +11,8 @@ const CONFIG: Config = {
   pythonExecutable: 'python',
   caBundlePath: '',
   insecureSkipTlsVerify: false,
+  requestMaxRetries: 2,
+  requestRetryDelayMilliseconds: 1_000,
   maxProfiles: 20,
   timeoutMilliseconds: 30_000,
   maxOutputBytes: 65_536,
@@ -30,12 +32,55 @@ const SPATIAL: GstarSpatialSnapshot = {
         { longitude: 116.48, latitude: 39.92 },
       ]],
     },
-    entities: [{ id: 'osm-way-1', type: 'facility', fields: { operator: '示例股份有限公司' } }],
+    entities: [
+      { id: 'osm-way-1', type: 'facility', fields: { operator: '示例股份有限公司' } },
+      { id: 'akshare-a-000001', type: 'listed_company', fields: { stock_name: '旧资料' } },
+    ],
     provenance: [{
       sourceId: 'osm-overpass',
       sourceName: 'OpenStreetMap',
       retrievedAt: '2026-08-29T08:00:00.000Z',
+    }, {
+      sourceId: AKSHARE_DATA_SOURCE_ID,
+      sourceName: 'AKShare / 巨潮资讯公司概况',
+      retrievedAt: '2026-08-29T08:00:00.000Z',
     }],
+    updatedAt: '2026-08-29T08:00:00.000Z',
+  }, {
+    id: 'osm-way-2',
+    name: '示例银行',
+    category: '金融',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        { longitude: 116.50, latitude: 39.92 },
+        { longitude: 116.51, latitude: 39.92 },
+        { longitude: 116.51, latitude: 39.93 },
+        { longitude: 116.50, latitude: 39.92 },
+      ]],
+    },
+    entities: [{
+      id: 'osm-way-2',
+      type: 'facility',
+      fields: { brand: '示例银行', ignored: '不作为别名', name: 123 },
+    }],
+    provenance: [],
+    updatedAt: '2026-08-29T08:00:00.000Z',
+  }, {
+    id: 'osm-way-3',
+    name: '示例医院',
+    category: '医疗',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[
+        { longitude: 116.52, latitude: 39.92 },
+        { longitude: 116.53, latitude: 39.92 },
+        { longitude: 116.53, latitude: 39.93 },
+        { longitude: 116.52, latitude: 39.92 },
+      ]],
+    },
+    entities: [],
+    provenance: [],
     updatedAt: '2026-08-29T08:00:00.000Z',
   }],
 }
@@ -45,6 +90,9 @@ function config(overrides: Partial<Config> = {}): Config {
     pythonExecutable: overrides.pythonExecutable ?? CONFIG.pythonExecutable,
     caBundlePath: overrides.caBundlePath ?? CONFIG.caBundlePath,
     insecureSkipTlsVerify: overrides.insecureSkipTlsVerify ?? CONFIG.insecureSkipTlsVerify,
+    requestMaxRetries: overrides.requestMaxRetries ?? CONFIG.requestMaxRetries,
+    requestRetryDelayMilliseconds: overrides.requestRetryDelayMilliseconds
+      ?? CONFIG.requestRetryDelayMilliseconds,
     maxProfiles: overrides.maxProfiles ?? CONFIG.maxProfiles,
     timeoutMilliseconds: overrides.timeoutMilliseconds ?? CONFIG.timeoutMilliseconds,
     maxOutputBytes: overrides.maxOutputBytes ?? CONFIG.maxOutputBytes,
@@ -53,18 +101,35 @@ function config(overrides: Partial<Config> = {}): Config {
 
 function handle(
   stdout: string,
-  options: { readonly stderr?: string; readonly exitCode?: number; readonly lossy?: boolean } = {},
+  options: {
+    readonly stderr?: string
+    readonly exitCode?: number
+    readonly stdoutLossy?: boolean
+    readonly stderrLossy?: boolean
+    readonly missingStreams?: boolean
+    readonly delayMilliseconds?: number
+  } = {},
 ): SubprocessHandle {
-  const read = (text: string) => ({
-    readFrom: () => ({ text, nextOffset: Buffer.byteLength(text), lossy: options.lossy ?? false }),
+  const read = (text: string, lossy: boolean) => ({
+    readFrom: () => ({ text, nextOffset: Buffer.byteLength(text), lossy }),
   })
+  const outcome = { exitCode: options.exitCode ?? 0, signal: null }
   return {
     pid: 1,
     stdin: undefined,
     stdout: undefined,
     stderr: undefined,
-    collected: { stdout: read(stdout), stderr: read(options.stderr ?? '') },
-    done: Promise.resolve({ exitCode: options.exitCode ?? 0, signal: null }),
+    collected: options.missingStreams === true ? {} : {
+      stdout: read(stdout, options.stdoutLossy ?? false),
+      stderr: read(options.stderr ?? '', options.stderrLossy ?? false),
+    },
+    done: options.delayMilliseconds === undefined
+      ? Promise.resolve(outcome)
+      : new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(outcome)
+        }, options.delayMilliseconds)
+      }),
     terminate() {},
     waitForExit: async () => true,
   }
@@ -101,6 +166,9 @@ describe('gstar-data-source-akshare', () => {
         company_name: '示例股份有限公司',
         stock_code: '000001',
         registered_address: '北京市朝阳区示例路 1 号',
+        registered_capital: 1_000_000,
+        active: true,
+        website: null,
       },
     }] }))
 
@@ -126,17 +194,27 @@ describe('gstar-data-source-akshare', () => {
     expect(spawnSpec?.argv[0]).toBe('/usr/bin/python')
     expect(spawnSpec?.argv[1]).toBe('-c')
     expect(spawnSpec?.argv[2]).toContain('stock_info_a_code_name')
+    expect(spawnSpec?.argv[2]).toContain('stock_zh_a_spot_em')
+    expect(spawnSpec?.argv[2]).toContain('request_with_retry')
     expect(spawnSpec?.env).toEqual({ PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' })
     const input = JSON.parse((spawnSpec?.stdio.stdin as { data: string }).data) as {
       stationTitle: string
       maxProfiles: number
       insecureSkipTlsVerify: boolean
+      requestMaxRetries: number
+      requestRetryDelayMilliseconds: number
       aois: Array<{ aliases: string[] }>
     }
     expect(input).toMatchObject({
-      stationTitle: '北京市朝阳区', maxProfiles: 20, insecureSkipTlsVerify: false,
+      stationTitle: '北京市朝阳区',
+      maxProfiles: 20,
+      insecureSkipTlsVerify: false,
+      requestMaxRetries: 2,
+      requestRetryDelayMilliseconds: 1_000,
     })
     expect(input.aois[0]?.aliases).toContain('示例股份有限公司')
+    expect(input.aois[1]?.aliases).toEqual(['示例银行'])
+    expect(input.aois).toHaveLength(2)
   })
 
   it('passes a configured CA bundle to Requests without disabling verification', async () => {
@@ -178,16 +256,35 @@ describe('gstar-data-source-akshare', () => {
   it.each([
     ['invalid JSON', 'not-json', {}, 'invalid JSON'],
     ['bridge failure', '', { exitCode: 1, stderr: 'akshare unavailable' }, 'akshare unavailable'],
+    ['empty bridge diagnostic', '', { exitCode: 1, missingStreams: true }, 'without a diagnostic'],
     [
       'TLS certificate failure', '',
       { exitCode: 1, stderr: 'SSLError: CERTIFICATE_VERIFY_FAILED: self-signed certificate in certificate chain' },
       'caBundlePath',
     ],
-    ['truncated output', '{"records":[]}', { lossy: true }, 'collection limit'],
+    ['truncated stdout', '{"records":[]}', { stdoutLossy: true }, 'collection limit'],
+    ['truncated stderr', '{"records":[]}', { stderrLossy: true }, 'collection limit'],
+    ['missing records', '{}', {}, 'without records'],
+    ['null record', '{"records":[null]}', {}, 'invalid company record'],
+    ['missing AOI id', '{"records":[{"code":"1","fields":{}}]}', {}, 'invalid company record'],
+    ['empty AOI id', '{"records":[{"aoiId":"","code":"1","fields":{}}]}', {}, 'invalid company record'],
+    ['missing code', '{"records":[{"aoiId":"a","fields":{}}]}', {}, 'invalid company record'],
+    ['empty code', '{"records":[{"aoiId":"a","code":"","fields":{}}]}', {}, 'invalid company record'],
+    ['null fields', '{"records":[{"aoiId":"a","code":"1","fields":null}]}', {}, 'invalid company record'],
+    ['scalar fields', '{"records":[{"aoiId":"a","code":"1","fields":"bad"}]}', {}, 'invalid company record'],
+    ['array fields', '{"records":[{"aoiId":"a","code":"1","fields":[]}]}', {}, 'invalid company record'],
     ['invalid record', '{"records":[{"aoiId":"a","code":"1","fields":{"bad":[]}}]}', {}, 'invalid field bad'],
   ] as const)('rejects %s without patching partial data', async (_label, stdout, options, message) => {
     const subject = fixture(stdout, options)
     await expect(subject.provider.synchronize!(SITE_ID)).rejects.toThrow(message)
+    expect(subject.patch).not.toHaveBeenCalled()
+  })
+
+  it('aborts a bridge that exceeds its configured deadline', async () => {
+    const subject = fixture('{"records":[]}', { delayMilliseconds: 10 }, config({
+      timeoutMilliseconds: 1,
+    }))
+    await expect(subject.provider.synchronize!(SITE_ID)).rejects.toThrow('exceeded 1 ms')
     expect(subject.patch).not.toHaveBeenCalled()
   })
 
@@ -204,6 +301,10 @@ describe('gstar-data-source-akshare', () => {
     const register = vi.fn().mockReturnValue(() => {})
     const dispose = await invariant.apply({ invariants: { register } } as never)
     expect(register).toHaveBeenCalledWith('@deepseek-ai/dsh-gstar-data-source-akshare', expect.any(Function))
+    const registeredInvariant: unknown = register.mock.calls[0]?.[1]
+    if (typeof registeredInvariant !== 'function') throw new TypeError('missing registered invariant')
+    const invokeInvariant = registeredInvariant as () => void
+    invokeInvariant()
     expect(dispose).toBeTypeOf('function')
   })
 })
