@@ -27,6 +27,8 @@ export interface Config {
   caBundlePath: string
   /** Disable certificate and hostname verification inside the isolated bridge child. */
   insecureSkipTlsVerify: boolean
+  /** Persistent AKShare/CNInfo CSV read before any remote request; empty disables local lookup. */
+  profileDatabasePath: string
   /** Maximum retries after each transient upstream request failure. */
   requestMaxRetries: number
   /** Delay in milliseconds between upstream request attempts. */
@@ -44,6 +46,7 @@ export const Config: z<Config> = z.object({
   pythonExecutable: z.string().required(),
   caBundlePath: z.string().default(''),
   insecureSkipTlsVerify: z.boolean().default(false),
+  profileDatabasePath: z.string().default(''),
   requestMaxRetries: z.natural().max(5).default(2),
   requestRetryDelayMilliseconds: z.natural().min(100).max(60_000).default(1_000),
   maxProfiles: z.natural().min(1).max(500).required(),
@@ -57,6 +60,12 @@ interface AkshareBridgeRecord {
   readonly fields: Readonly<Record<string, GstarEntityFieldValue>>
 }
 
+interface AkshareBridgeResult {
+  readonly records: readonly AkshareBridgeRecord[]
+  readonly unavailable?: string
+  readonly cacheUsed?: boolean
+}
+
 /** Render the actionable error tail without exposing the child environment. */
 function bridgeError(stderr: string): string {
   const message = stderr.trim()
@@ -67,8 +76,8 @@ function bridgeError(stderr: string): string {
   return message.length === 0 ? 'AKShare bridge exited without a diagnostic' : message
 }
 
-/** Decode the trusted bridge's JSON at the subprocess boundary. */
-function decodeBridge(content: string): readonly AkshareBridgeRecord[] {
+/** Decode the trusted bridge's records or explicit upstream-unavailable result. */
+function decodeBridge(content: string): AkshareBridgeResult {
   let value: unknown
   try {
     value = JSON.parse(content)
@@ -78,8 +87,21 @@ function decodeBridge(content: string): readonly AkshareBridgeRecord[] {
   if (value === null || typeof value !== 'object' || !Array.isArray((value as { records?: unknown }).records)) {
     throw new Error('AKShare bridge returned a payload without records')
   }
+  const inputResult = value as {
+    readonly records: unknown[]
+    readonly unavailable?: unknown
+    readonly cacheUsed?: unknown
+  }
+  if (inputResult.unavailable !== undefined
+    && (typeof inputResult.unavailable !== 'string' || inputResult.unavailable.length === 0
+      || inputResult.records.length !== 0)) {
+    throw new Error('AKShare bridge returned an invalid unavailable result')
+  }
+  if (inputResult.cacheUsed !== undefined && inputResult.cacheUsed !== true) {
+    throw new Error('AKShare bridge returned an invalid cache result')
+  }
   const records: AkshareBridgeRecord[] = []
-  for (const candidate of (value as { records: unknown[] }).records) {
+  for (const candidate of inputResult.records) {
     if (candidate === null || typeof candidate !== 'object') {
       throw new Error('AKShare bridge returned an invalid company record')
     }
@@ -99,7 +121,11 @@ function decodeBridge(content: string): readonly AkshareBridgeRecord[] {
     }
     records.push({ aoiId: input.aoiId, code: input.code, fields })
   }
-  return records
+  return {
+    records,
+    ...(typeof inputResult.unavailable === 'string' ? { unavailable: inputResult.unavailable } : {}),
+    ...(inputResult.cacheUsed === true ? { cacheUsed: true } : {}),
+  }
 }
 
 /** Execute the bundled Python adapter and decode matched listed companies. */
@@ -108,7 +134,7 @@ async function collectCompanies(
   config: Config,
   stationTitle: string,
   spatial: GstarSpatialSnapshot,
-): Promise<readonly AkshareBridgeRecord[]> {
+): Promise<AkshareBridgeResult> {
   const python = await ctx.subprocess.resolveExecutable(config.pythonExecutable)
   const controller = new AbortController()
   const timer = setTimeout(() => {
@@ -118,6 +144,7 @@ async function collectCompanies(
     stationTitle,
     maxProfiles: config.maxProfiles,
     insecureSkipTlsVerify: config.insecureSkipTlsVerify,
+    profileDatabasePath: config.profileDatabasePath,
     requestMaxRetries: config.requestMaxRetries,
     requestRetryDelayMilliseconds: config.requestRetryDelayMilliseconds,
     aois: spatial.aois
@@ -171,8 +198,16 @@ async function synchronize(ctx: Context, config: Config, workspaceId: WorkspaceI
   if (site === undefined) throw new Error(`AKShare: Workspace ${workspaceId} is not a GSTAR station`)
   const spatial = (await ctx.gstarSpatial.list()).find(candidate => candidate.workspaceId === workspaceId)
   if (spatial === undefined) throw new Error(`AKShare: station ${workspaceId} has no spatial projection`)
-  const records = await collectCompanies(ctx, config, site.title, spatial)
-  if (records.length === 0) return '未在当前企业 AOI 中匹配到注册地址属于该局点的 A 股上市公司'
+  const result = await collectCompanies(ctx, config, site.title, spatial)
+  if (result.unavailable !== undefined) {
+    return `${result.unavailable}；本次未更新，已保留现有 AOI 数据`
+  }
+  const records = result.records
+  if (records.length === 0) {
+    return result.cacheUsed === true
+      ? '本地 AKShare 公司档案库未匹配到注册地址属于该局点的 A 股上市公司'
+      : '未在当前企业 AOI 中匹配到注册地址属于该局点的 A 股上市公司'
+  }
   const retrievedAt = new Date().toISOString()
   const byAoi = new Map(records.map(record => [record.aoiId, record]))
   const aois = spatial.aois.map((aoi) => {
@@ -182,7 +217,9 @@ async function synchronize(ctx: Context, config: Config, workspaceId: WorkspaceI
     const entity = { id: entityId, type: 'listed_company', fields: record.fields }
     const provenance = {
       sourceId: AKSHARE_DATA_SOURCE_ID,
-      sourceName: 'AKShare / 巨潮资讯公司概况',
+      sourceName: result.cacheUsed === true
+        ? 'AKShare / 巨潮资讯公司概况（本地档案库）'
+        : 'AKShare / 巨潮资讯公司概况',
       sourceUrl: 'https://webapi.cninfo.com.cn/#/company',
       retrievedAt,
       checksum: `sha256:${createHash('sha256').update(JSON.stringify(record)).digest('hex')}`,
@@ -198,7 +235,9 @@ async function synchronize(ctx: Context, config: Config, workspaceId: WorkspaceI
     }
   })
   await ctx.gstarSpatial.patch({ workspaceId, aois })
-  return `已为 ${String(records.length)} 个企业 AOI 补充 A 股上市公司资料`
+  return result.cacheUsed === true
+    ? `已从本地 AKShare 公司档案库为 ${String(records.length)} 个企业 AOI 补充 A 股上市公司资料`
+    : `已为 ${String(records.length)} 个企业 AOI 补充 A 股上市公司资料`
 }
 
 /**

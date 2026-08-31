@@ -721,6 +721,8 @@ export interface Config {
   caBundlePath: string
   /** Disable certificate and hostname verification inside the isolated bridge child. */
   insecureSkipTlsVerify: boolean
+  /** Persistent AKShare/CNInfo CSV read before any remote request; empty disables local lookup. */
+  profileDatabasePath: string
   /** Maximum retries after each transient upstream request failure. */
   requestMaxRetries: number
   /** Delay in milliseconds between upstream request attempts. */
