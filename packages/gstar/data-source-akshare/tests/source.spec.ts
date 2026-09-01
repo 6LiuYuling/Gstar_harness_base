@@ -200,6 +200,8 @@ describe('gstar-data-source-akshare', () => {
     expect(spawnSpec?.argv[2]).toContain('stock_zh_a_spot_tx')
     expect(spawnSpec?.argv[2]).toContain('stock_zh_a_spot')
     expect(spawnSpec?.argv[2]).toContain('load_profile_database')
+    expect(spawnSpec?.argv[2]).toContain('candidateAoiCount')
+    expect(spawnSpec?.argv[2]).toContain('re.split')
     expect(spawnSpec?.argv[2]).toContain('request_with_retry')
     expect(spawnSpec?.env).toEqual({ PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' })
     const input = JSON.parse((spawnSpec?.stdio.stdin as { data: string }).data) as {
@@ -277,9 +279,15 @@ describe('gstar-data-source-akshare', () => {
         fields: { company_name: '示例股份有限公司' },
       }],
       cacheUsed: true,
+      diagnostics: {
+        candidateAoiCount: 2,
+        nameMatchedAoiCount: 2,
+        addressMatchedAoiCount: 1,
+      },
     }), undefined, config({ profileDatabasePath: databasePath }))
     await expect(subject.provider.synchronize!(SITE_ID))
-      .resolves.toBe('已从本地 AKShare 公司档案库为 1 个企业 AOI 补充 A 股上市公司资料')
+      .resolves.toBe('已从本地 AKShare 公司档案库为 1 个企业 AOI 补充 A 股上市公司资料'
+        + '（检查 2 个企业/金融 AOI，名称命中 2 个，地址命中 1 个）')
     const request = subject.patch.mock.calls[0]![0]
     expect(request.aois?.[0]?.provenance).toContainEqual(expect.objectContaining({
       sourceName: 'AKShare / 巨潮资讯公司概况（本地档案库）',
@@ -292,10 +300,29 @@ describe('gstar-data-source-akshare', () => {
   })
 
   it('keeps spatial data when the persistent company database has no station match', async () => {
+    const subject = fixture(JSON.stringify({
+      records: [],
+      cacheUsed: true,
+      diagnostics: {
+        candidateAoiCount: 2,
+        nameMatchedAoiCount: 1,
+        addressMatchedAoiCount: 0,
+      },
+    }), undefined, config({
+      profileDatabasePath: 'C:\\gstar\\data\\all_listed_companies.csv',
+    }))
+    await expect(subject.provider.synchronize!(SITE_ID)).resolves.toContain(
+      '检查 2 个企业/金融 AOI，名称命中 1 个，地址命中 0 个',
+    )
+    expect(subject.patch).not.toHaveBeenCalled()
+  })
+
+  it('accepts a local-database result from a bridge without funnel diagnostics', async () => {
     const subject = fixture('{"records":[],"cacheUsed":true}', undefined, config({
       profileDatabasePath: 'C:\\gstar\\data\\all_listed_companies.csv',
     }))
-    await expect(subject.provider.synchronize!(SITE_ID)).resolves.toContain('本地 AKShare 公司档案库未匹配到')
+    await expect(subject.provider.synchronize!(SITE_ID))
+      .resolves.toBe('本地 AKShare 公司档案库未匹配到注册地址属于该局点的 A 股上市公司')
     expect(subject.patch).not.toHaveBeenCalled()
   })
 
@@ -315,6 +342,13 @@ describe('gstar-data-source-akshare', () => {
     ['non-string unavailable diagnostic', '{"records":[],"unavailable":1}', {}, 'invalid unavailable'],
     ['records with unavailable diagnostic', '{"records":[{"aoiId":"a","code":"1","fields":{}}],"unavailable":"down"}', {}, 'invalid unavailable'],
     ['false cache marker', '{"records":[],"cacheUsed":false}', {}, 'invalid cache'],
+    ['diagnostics without cache', '{"records":[],"diagnostics":{}}', {}, 'invalid diagnostics'],
+    ['null diagnostics', '{"records":[],"cacheUsed":true,"diagnostics":null}', {}, 'invalid diagnostics'],
+    ['array diagnostics', '{"records":[],"cacheUsed":true,"diagnostics":[]}', {}, 'invalid diagnostics'],
+    ['missing diagnostic count', '{"records":[],"cacheUsed":true,"diagnostics":{"candidateAoiCount":1,"nameMatchedAoiCount":0}}', {}, 'invalid diagnostics'],
+    ['negative diagnostic count', '{"records":[],"cacheUsed":true,"diagnostics":{"candidateAoiCount":1,"nameMatchedAoiCount":0,"addressMatchedAoiCount":-1}}', {}, 'invalid diagnostics'],
+    ['name diagnostic overflow', '{"records":[],"cacheUsed":true,"diagnostics":{"candidateAoiCount":0,"nameMatchedAoiCount":1,"addressMatchedAoiCount":0}}', {}, 'invalid diagnostics'],
+    ['address diagnostic overflow', '{"records":[],"cacheUsed":true,"diagnostics":{"candidateAoiCount":1,"nameMatchedAoiCount":0,"addressMatchedAoiCount":1}}', {}, 'invalid diagnostics'],
     ['null record', '{"records":[null]}', {}, 'invalid company record'],
     ['missing AOI id', '{"records":[{"code":"1","fields":{}}]}', {}, 'invalid company record'],
     ['empty AOI id', '{"records":[{"aoiId":"","code":"1","fields":{}}]}', {}, 'invalid company record'],

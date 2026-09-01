@@ -58,15 +58,29 @@ def normalized_name(value: object) -> str:
 
 
 def station_tokens(value: str) -> list[str]:
-    """Keep city and district tokens so broad city names do not admit neighboring districts."""
+    """Normalize canonical or display-style station names into address tokens."""
     title = re.sub(r"(?:局点|站点)$", "", value.strip())
-    tokens = re.findall(r"[^省市区县]+[省市区县]", title)
-    return tokens or ([title] if title else [])
+    parts = [part for part in re.split(r"[·•/／>＞\\|—–_-]+", title) if part]
+    tokens: list[tuple[str, str | None]] = []
+    for part in parts:
+        administrative = re.findall(r"([^省市区县]+)([省市区县])", part)
+        if administrative:
+            tokens.extend((name.strip(), suffix) for name, suffix in administrative if name.strip())
+        elif part.strip():
+            tokens.append((part.strip(), None))
+    if any(suffix in {"市", "区", "县"} for _name, suffix in tokens):
+        tokens = [(name, suffix) for name, suffix in tokens if suffix != "省"]
+    normalized: list[str] = []
+    for name, _suffix in tokens:
+        token = re.sub(r"\s+", "", name)
+        if token and token not in normalized:
+            normalized.append(token)
+    return normalized
 
 
 def addresses_belong_to_station(registered: object, office: object, title: str) -> bool:
     """Require every available station token in either registered or office address."""
-    addresses = f"{registered or ''} {office or ''}"
+    addresses = re.sub(r"\s+", "", f"{registered or ''} {office or ''}")
     tokens = station_tokens(title)
     return bool(tokens) and all(token in addresses for token in tokens)
 
@@ -119,7 +133,10 @@ def normalized_aoi_names(aoi: dict[str, object]) -> list[str]:
 
 def company_name_matches(values: list[object], normalized: list[str]) -> bool:
     """Match a full or short company name against one AOI name or alias."""
-    candidates = [normalized_name(value) for value in values if json_value(value) is not None]
+    candidates = [
+        candidate for value in values if json_value(value) is not None
+        if (candidate := normalized_name(value))
+    ]
     return any(
         candidate in aoi_name or aoi_name in candidate
         for candidate in candidates
@@ -132,7 +149,7 @@ def load_profile_database(
     aois: list[object],
     station_title: str,
     max_profiles: int,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Resolve AOIs from a persistent AKShare/CNInfo CSV without remote requests."""
     database = Path(path).expanduser()
     if not database.is_file():
@@ -145,19 +162,35 @@ def load_profile_database(
 
     records: list[dict[str, Any]] = []
     matched_codes: set[str] = set()
+    candidate_aoi_count = 0
+    name_matched_aoi_count = 0
+    address_matched_aoi_count = 0
     for raw_aoi in aois:
         if not isinstance(raw_aoi, dict) or not isinstance(raw_aoi.get("id"), str):
             continue
+        candidate_aoi_count += 1
         normalized = normalized_aoi_names(raw_aoi)
-        matched_profile = next((
+        name_matches = [
             profile for profile in profiles
             if company_name_matches([
                 first_cached_value(profile, CACHE_PROFILE_COLUMNS["company_name"]),
                 first_cached_value(profile, CACHE_PROFILE_COLUMNS["stock_name"]),
             ], normalized)
+        ]
+        if not name_matches:
+            continue
+        name_matched_aoi_count += 1
+        matched_profile = next((
+            profile for profile in name_matches
+            if addresses_belong_to_station(
+                first_cached_value(profile, CACHE_PROFILE_COLUMNS["registered_address"]),
+                first_cached_value(profile, CACHE_PROFILE_COLUMNS["office_address"]),
+                station_title,
+            )
         ), None)
         if matched_profile is None:
             continue
+        address_matched_aoi_count += 1
         fields = {
             target: json_value(first_cached_value(matched_profile, names))
             for target, names in CACHE_PROFILE_COLUMNS.items()
@@ -166,18 +199,16 @@ def load_profile_database(
         code = re.sub(r"^(?:SH|SZ|BJ)", "", str(raw_code or "").strip(), flags=re.IGNORECASE)
         if not code or code in matched_codes:
             continue
-        if not addresses_belong_to_station(
-            fields.get("registered_address"),
-            fields.get("office_address"),
-            station_title,
-        ):
-            continue
         fields["stock_code"] = code
         matched_codes.add(code)
         records.append({"aoiId": raw_aoi["id"], "code": code, "fields": fields})
         if len(records) >= max_profiles:
             break
-    return records
+    return records, {
+        "candidateAoiCount": candidate_aoi_count,
+        "nameMatchedAoiCount": name_matched_aoi_count,
+        "addressMatchedAoiCount": address_matched_aoi_count,
+    }
 
 
 def configure_tls(insecure_skip_tls_verify: bool) -> None:
@@ -317,14 +348,14 @@ def main() -> None:
         raise ValueError("invalid AKShare bridge request")
 
     if profile_database_path:
-        records = load_profile_database(
+        records, diagnostics = load_profile_database(
             profile_database_path,
             aois,
             station_title,
             max_profiles,
         )
         json.dump(
-            {"records": records, "cacheUsed": True},
+            {"records": records, "cacheUsed": True, "diagnostics": diagnostics},
             sys.stdout,
             ensure_ascii=False,
             allow_nan=False,

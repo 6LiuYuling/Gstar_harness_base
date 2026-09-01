@@ -64,6 +64,13 @@ interface AkshareBridgeResult {
   readonly records: readonly AkshareBridgeRecord[]
   readonly unavailable?: string
   readonly cacheUsed?: boolean
+  readonly diagnostics?: AkshareBridgeDiagnostics
+}
+
+interface AkshareBridgeDiagnostics {
+  readonly candidateAoiCount: number
+  readonly nameMatchedAoiCount: number
+  readonly addressMatchedAoiCount: number
 }
 
 /** Render the actionable error tail without exposing the child environment. */
@@ -91,6 +98,7 @@ function decodeBridge(content: string): AkshareBridgeResult {
     readonly records: unknown[]
     readonly unavailable?: unknown
     readonly cacheUsed?: unknown
+    readonly diagnostics?: unknown
   }
   if (inputResult.unavailable !== undefined
     && (typeof inputResult.unavailable !== 'string' || inputResult.unavailable.length === 0
@@ -99,6 +107,25 @@ function decodeBridge(content: string): AkshareBridgeResult {
   }
   if (inputResult.cacheUsed !== undefined && inputResult.cacheUsed !== true) {
     throw new Error('AKShare bridge returned an invalid cache result')
+  }
+  let diagnostics: AkshareBridgeDiagnostics | undefined
+  if (inputResult.diagnostics !== undefined) {
+    if (inputResult.cacheUsed !== true || inputResult.diagnostics === null
+      || typeof inputResult.diagnostics !== 'object' || Array.isArray(inputResult.diagnostics)) {
+      throw new Error('AKShare bridge returned invalid diagnostics')
+    }
+    const input = inputResult.diagnostics as Partial<Record<keyof AkshareBridgeDiagnostics, unknown>>
+    const counts = [input.candidateAoiCount, input.nameMatchedAoiCount, input.addressMatchedAoiCount]
+    if (!counts.every(count => Number.isSafeInteger(count) && (count as number) >= 0)
+      || (input.nameMatchedAoiCount as number) > (input.candidateAoiCount as number)
+      || (input.addressMatchedAoiCount as number) > (input.nameMatchedAoiCount as number)) {
+      throw new Error('AKShare bridge returned invalid diagnostics')
+    }
+    diagnostics = {
+      candidateAoiCount: input.candidateAoiCount as number,
+      nameMatchedAoiCount: input.nameMatchedAoiCount as number,
+      addressMatchedAoiCount: input.addressMatchedAoiCount as number,
+    }
   }
   const records: AkshareBridgeRecord[] = []
   for (const candidate of inputResult.records) {
@@ -125,7 +152,15 @@ function decodeBridge(content: string): AkshareBridgeResult {
     records,
     ...(typeof inputResult.unavailable === 'string' ? { unavailable: inputResult.unavailable } : {}),
     ...(inputResult.cacheUsed === true ? { cacheUsed: true } : {}),
+    ...(diagnostics === undefined ? {} : { diagnostics }),
   }
+}
+
+/** Render local-database funnel counts for an actionable synchronization result. */
+function diagnosticSuffix(diagnostics: AkshareBridgeDiagnostics | undefined): string {
+  return diagnostics === undefined
+    ? ''
+    : `（检查 ${String(diagnostics.candidateAoiCount)} 个企业/金融 AOI，名称命中 ${String(diagnostics.nameMatchedAoiCount)} 个，地址命中 ${String(diagnostics.addressMatchedAoiCount)} 个）`
 }
 
 /** Execute the bundled Python adapter and decode matched listed companies. */
@@ -205,7 +240,7 @@ async function synchronize(ctx: Context, config: Config, workspaceId: WorkspaceI
   const records = result.records
   if (records.length === 0) {
     return result.cacheUsed === true
-      ? '本地 AKShare 公司档案库未匹配到注册地址属于该局点的 A 股上市公司'
+      ? `本地 AKShare 公司档案库未匹配到注册地址属于该局点的 A 股上市公司${diagnosticSuffix(result.diagnostics)}`
       : '未在当前企业 AOI 中匹配到注册地址属于该局点的 A 股上市公司'
   }
   const retrievedAt = new Date().toISOString()
@@ -236,7 +271,7 @@ async function synchronize(ctx: Context, config: Config, workspaceId: WorkspaceI
   })
   await ctx.gstarSpatial.patch({ workspaceId, aois })
   return result.cacheUsed === true
-    ? `已从本地 AKShare 公司档案库为 ${String(records.length)} 个企业 AOI 补充 A 股上市公司资料`
+    ? `已从本地 AKShare 公司档案库为 ${String(records.length)} 个企业 AOI 补充 A 股上市公司资料${diagnosticSuffix(result.diagnostics)}`
     : `已为 ${String(records.length)} 个企业 AOI 补充 A 股上市公司资料`
 }
 
