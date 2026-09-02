@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-21-gstar-profile-shell.md
+2026-08-21-gstar-profile-shell.md: ba232b00ff5ba9ad5baeca0d5bbdbb967a3b1d45
+2026-08-21-gstar-profile-shell.zh.md: 08c9b4a3c09d5c22d7abcdd9e811d2ff00bb00e9

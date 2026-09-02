@@ -1,0 +1,37 @@
+.root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-base);
+  --gstar-map-site: var(--dsw-alias-state-business-primary);
+  --gstar-map-site-outline: var(--dsw-alias-bg-base);
+  --gstar-map-label: var(--dsw-alias-label-primary);
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.canvas :global(.cesium-viewer),
+.canvas :global(.cesium-viewer-cesiumWidgetContainer),
+.canvas :global(.cesium-widget),
+.canvas :global(.cesium-widget canvas) {
+  width: 100%;
+  height: 100%;
+}
+
+.status {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+}

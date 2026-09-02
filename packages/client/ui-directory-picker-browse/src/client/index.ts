@@ -1,6 +1,6 @@
 /**
- * Browser half of the browse directory-picker backend: fills ui-workspace's
- * two directory-flow holes with the in-app Select Workspace Directory dialog
+ * Browser half of the browse directory-picker backend: fills the two standard
+ * Workspace directory-flow holes with the in-app Select Workspace Directory dialog
  * (figma `Harness` 813-23126 family), driving the node half's
  * `host.listDirectory`/`host.createDirectory` primitives. Mounting this
  * package therefore composes both sides of the browse interaction with one
@@ -8,7 +8,7 @@
  * copy is locale-registered here — the flow package owns its own strings.
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-// Type-only: pulls the SlotMap merge declaring the directory-flow holes.
+// Type-only: pulls the shared SlotMap merge declaring the directory-flow holes.
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { BrowseFlowInjected } from './flow.ts'
 import { BrowseDirectoryFlow } from './flow.ts'
@@ -21,8 +21,8 @@ export const inject = ['slots', 'workspaces', 'locale']
 
 /**
  * Client plugin body: register the dialog's dictionaries and the browse flow
- * into both directory-flow holes through `slots.inject()` because the
- * ui-workspace entries may activate later or replace their declarations.
+ * into both directory-flow holes through `slots.inject()` because their Web
+ * or product-shell owner may activate later or replace its declarations.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {

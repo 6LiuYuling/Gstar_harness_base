@@ -1,0 +1,158 @@
+# GSTAR presentation overlay. Host transport, storage, Workspace, Client
+# runtime, theme, locale, and renderer continue to come from dsh-web-app.
+
+- insert:
+    # Fixed-origin Host retrieval for station-name geocoding. The model-facing
+    # web_fetch tool remains disabled; only gstarSpatial constructs the URL.
+    - id: gstar-web-fetch-http
+      name: '@deepseek-ai/dsh-web-fetch-http'
+      config:
+        maxUrlLength: 8192
+        maxResponseBytes: 20000000
+        maxBodyChars: 12000000
+        timeoutMs: 150000
+        maxRedirects: 1
+        userAgent: 'GSTAR-Harness/0.1 (+https://github.com/6LiuYuling/Gstar_harness_base)'
+
+    # Workspace remains the durable station authority. This GSTAR provider
+    # publishes the station-shaped Host and Remote capability over it.
+    - id: gstar-sites
+      name: '@deepseek-ai/dsh-gstar-site-workspace'
+
+    # Source management is a durable station capability. Each source below is
+    # an ordinary Cordis row and can be added, removed, or replaced by a higher
+    # profile layer without changing the GSTAR UI or spatial Provider.
+    - id: gstar-data-sources
+      name: '@deepseek-ai/dsh-gstar-data-source-storage'
+
+    # Spatial snapshots stay in a Host capability so Cesium only projects
+    # station locations, AOIs, entities, and provenance returned by DSH.
+    - id: gstar-spatial
+      name: '@deepseek-ai/dsh-gstar-spatial-storage'
+      config:
+        overpassEndpoint: 'https://overpass-api.de/api/interpreter'
+        overpassTimeoutSeconds: 120
+        overpassMaxElements: 2000
+        overpassRequestIntervalMilliseconds: 1000
+        overpassRetryDelayMilliseconds: 30000
+        overpassMaxRetries: 2
+        fallbackRadiusMeters: 15000
+
+    - id: gstar-source-osm
+      name: '@deepseek-ai/dsh-gstar-data-source-osm'
+
+    - id: gstar-source-akshare
+      name: '@deepseek-ai/dsh-gstar-data-source-akshare'
+      config:
+        pythonExecutable: 'python'
+        caBundlePath: ''
+        insecureSkipTlsVerify: true
+        maxProfiles: 100
+        timeoutMilliseconds: 300000
+        maxOutputBytes: 4194304
+
+    - id: gstar-source-national-public-data-registry
+      name: '@deepseek-ai/dsh-gstar-data-source-reference'
+      config:
+        id: 'national-public-data-registry'
+        name: '国家公共数据资源登记平台'
+        publisher: '国家数据局'
+        url: 'https://sjdj.nda.gov.cn/'
+        categories: ['政', '企', '金融', '教育', '医疗', '商场', '居民区']
+        defaultEnabled: false
+
+    - id: gstar-source-national-government-service
+      name: '@deepseek-ai/dsh-gstar-data-source-reference'
+      config:
+        id: 'national-government-service'
+        name: '国家政务服务平台'
+        publisher: '国务院办公厅'
+        url: 'https://gjzwfw.www.gov.cn/index.html'
+        categories: ['政', '企']
+        defaultEnabled: false
+
+    - id: gstar-source-national-enterprise-credit
+      name: '@deepseek-ai/dsh-gstar-data-source-reference'
+      config:
+        id: 'national-enterprise-credit'
+        name: '国家企业信用信息公示系统'
+        publisher: '国家市场监督管理总局'
+        url: 'https://www.gsxt.gov.cn/index.html'
+        categories: ['企']
+        defaultEnabled: false
+
+    - id: gstar-source-national-financial-license
+      name: '@deepseek-ai/dsh-gstar-data-source-reference'
+      config:
+        id: 'national-financial-license'
+        name: '金融许可证信息查询'
+        publisher: '国家金融监督管理总局'
+        url: 'https://xkz.nfra.gov.cn/'
+        categories: ['金融']
+        defaultEnabled: false
+
+    - id: gstar-source-moe-higher-education-list
+      name: '@deepseek-ai/dsh-gstar-data-source-reference'
+      config:
+        id: 'moe-higher-education-list'
+        name: '全国普通高等学校名单'
+        publisher: '中华人民共和国教育部'
+        url: 'https://hudong.moe.gov.cn/qggxmd/'
+        categories: ['教育']
+        defaultEnabled: false
+
+    - id: gstar-source-nhc-data-query
+      name: '@deepseek-ai/dsh-gstar-data-source-reference'
+      config:
+        id: 'nhc-data-query'
+        name: '国家卫生健康委员会数据查询'
+        publisher: '国家卫生健康委员会'
+        url: 'https://www.nhc.gov.cn/wjw/sjcx/sjcx.shtml'
+        categories: ['医疗']
+        defaultEnabled: false
+
+    # Read-only Agent Consumer: scopes station/AOI/entity/provenance queries
+    # from the calling Session cwd and rejects non-station Workspaces.
+    - id: gstar-tool-spatial-query
+      name: '@deepseek-ai/dsh-gstar-tool-spatial-query'
+
+    # Cesium's workers, widgets, and runtime assets are served by the DSH Web
+    # Server. The GSTAR browser plugin is not a separately hosted web app.
+    - id: gstar-cesium-assets
+      name: '@deepseek-ai/dsh-gstar-cesium-assets'
+
+    # Browser-only Remote contribution: mounts GSTAR station, spatial, and
+    # source-management namespaces without adding them to `dsh web`.
+    - id: gstar-client-remotes
+      name: '@deepseek-ai/dsh-gstar-client-remotes'
+
+    # GSTAR is a separate Client row rather than a `name` override. In the
+    # include patch dialect `name` validates the package already mounted at an
+    # id; it does not replace that package.
+    - id: ui-gstar
+      name: '@deepseek-ai/dsh-client-ui-gstar'
+
+- id: ui-layout
+  disabled: true
+
+# GSTAR owns the root and the station list, so the standard shell and generic
+# Workspace presentation stay disabled. The standard conversation subtree is
+# intentionally active and mounts into GSTAR's right-hand `conversation` slot.
+- id: ui-sidebar
+  disabled: true
+# `ui-settings` is the presentation-free settings domain. It must remain
+# active because it provides `settingsScope` to locale and theme. Only its
+# standard settings-page consumers below are disabled for the GSTAR shell.
+- id: ui-settings-general
+  disabled: true
+- id: ui-settings-models
+  disabled: true
+- id: ui-settings-plugin-inventory
+  disabled: true
+# The GSTAR root re-declares ui-workspace's directory-flow holes so the
+# shared directory-picker-auto interaction remains available without the
+# standard Workspace list or generic Workspace adoption action.
+- id: ui-workspace
+  disabled: true
+- id: ui-settings-plugins
+  disabled: true

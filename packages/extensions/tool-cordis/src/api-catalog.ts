@@ -875,6 +875,153 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'gstarDataSources',
+    summary: 'Provider-neutral source registry, durable selection, and Host Remote adapter.',
+    description: 'Provider-neutral source registry, durable selection, and Host Remote adapter.',
+    methods: [
+      {
+        signature: 'abstract register(provider: GstarDataSourceProvider): () => void',
+        description: 'Register one source plugin until its Cordis effect is disposed.',
+        parameters: [{ name: 'provider', description: 'Source metadata and optional synchronization operation.' }],
+        returns: 'disposer that removes the exact live contribution.',
+      },
+      {
+        signature: 'abstract list(request: GstarDataSourceListRequest): Promise<readonly GstarDataSourceSnapshot[]>',
+        description: 'List loaded source plugins with effective enablement for one station.',
+        parameters: [{ name: 'request', description: 'Classified station whose configuration is projected.' }],
+        returns: 'immutable source snapshots ordered by stable source id.',
+      },
+      {
+        signature: 'abstract setEnabled(request: GstarDataSourceSetEnabledRequest): Promise<GstarDataSourceSnapshot>',
+        description: 'Persist one station\'s enablement override for a loaded source plugin.',
+        parameters: [{ name: 'request', description: 'Station, loaded source id, and effective enablement.' }],
+        returns: 'the updated source snapshot.',
+      },
+      {
+        signature: 'abstract synchronize( request: GstarDataSourceSynchronizeRequest, ): Promise<GstarDataSourceSynchronizationSnapshot>',
+        description: 'Execute one enabled direct source plugin.',
+        parameters: [{ name: 'request', description: 'Station and loaded source id to run.' }],
+        returns: 'completion metadata after the source commits successfully.',
+      },
+      {
+        signature: '@Remote(\'list\') remoteExportList(request: GstarDataSourceListRequest): Promise<readonly GstarDataSourceSnapshot[]>',
+        description: 'Remote adapter for list.',
+        parameters: [{ name: 'request', description: 'Classified station whose loaded sources are projected.' }],
+        returns: 'immutable source snapshots with effective station enablement.',
+      },
+      {
+        signature: '@Remote(\'setEnabled\') remoteExportSetEnabled(request: GstarDataSourceSetEnabledRequest): Promise<GstarDataSourceSnapshot>',
+        description: 'Remote adapter for setEnabled.',
+        parameters: [{ name: 'request', description: 'Station, loaded source id, and effective enablement.' }],
+        returns: 'the updated source snapshot.',
+      },
+      {
+        signature: '@Remote(\'synchronize\') remoteExportSynchronize( request: GstarDataSourceSynchronizeRequest, ): Promise<GstarDataSourceSynchronizationSnapshot>',
+        description: 'Remote adapter for synchronize.',
+        parameters: [{ name: 'request', description: 'Station and enabled direct source to execute.' }],
+        returns: 'completion metadata after the source commits successfully.',
+      },
+    ],
+  },
+  {
+    key: 'gstarSites',
+    summary: 'Provider-neutral GSTAR station service and its Host Remote adapter.',
+    description: 'Provider-neutral GSTAR station service and its Host Remote adapter.',
+    methods: [
+      {
+        signature: 'abstract list(): Promise<readonly GstarSiteSnapshot[]>',
+        description: 'List every station in the Workspace registry\'s durable order.',
+        parameters: [],
+        returns: 'immutable GSTAR station snapshots.',
+      },
+      {
+        signature: 'abstract create(request: GstarSiteCreateRequest): Promise<GstarSiteSnapshot>',
+        description: 'Create or resolve a station through the active Workspace provider.',
+        parameters: [{ name: 'request', description: 'Existing directory and optional first-create title.' }],
+        returns: 'the durable station snapshot.',
+      },
+      {
+        signature: 'abstract delete(request: GstarSiteDeleteRequest): Promise<GstarSiteSnapshot>',
+        description: 'Remove a station\'s GSTAR classification and station-owned domain data. The generic Workspace, directory, and Session logs remain available to `dsh web`.',
+        parameters: [{ name: 'request', description: 'Classified station Workspace identity.' }],
+        returns: 'the removed station snapshot.',
+      },
+      {
+        signature: 'registerDeletionParticipant(participant: GstarSiteDeletionParticipant): () => void',
+        description: 'Register a Host-side cleanup participant for station deletion.',
+        parameters: [{ name: 'participant', description: 'Durable cleanup returning an optional compensating rollback.' }],
+        returns: 'disposer that removes the participant from future deletions.',
+      },
+      {
+        signature: '@Remote(\'list\') remoteExportList(): Promise<readonly GstarSiteSnapshot[]>',
+        description: 'Remote adapter for list; decorators cannot annotate abstract methods.',
+        parameters: [],
+        returns: 'immutable GSTAR station snapshots.',
+      },
+      {
+        signature: '@Remote(\'create\') remoteExportCreate(request: GstarSiteCreateRequest): Promise<GstarSiteSnapshot>',
+        description: 'Remote adapter for create; decorators cannot annotate abstract methods.',
+        parameters: [{ name: 'request', description: 'Existing directory and optional first-create title.' }],
+        returns: 'the durable station snapshot.',
+      },
+      {
+        signature: '@Remote(\'delete\') remoteExportDelete(request: GstarSiteDeleteRequest): Promise<GstarSiteSnapshot>',
+        description: 'Remote adapter for delete; decorators cannot annotate abstract methods.',
+        parameters: [{ name: 'request', description: 'Classified station Workspace identity.' }],
+        returns: 'the removed station snapshot.',
+      },
+    ],
+  },
+  {
+    key: 'gstarSpatial',
+    summary: 'Provider-neutral GSTAR spatial service and its Host Remote adapter.',
+    description: 'Provider-neutral GSTAR spatial service and its Host Remote adapter.',
+    methods: [
+      {
+        signature: 'abstract list(): Promise<readonly GstarSpatialSnapshot[]>',
+        description: 'List spatial projections for the requested station roster.',
+        parameters: [],
+        returns: 'one immutable projection per classified station, in station order.',
+      },
+      {
+        signature: 'abstract patch(request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot>',
+        description: 'Patch location, station boundary, or AOIs and retain every omitted field.',
+        parameters: [{ name: 'request', description: 'Spatial fields to commit for one station.' }],
+        returns: 'the committed immutable projection.',
+      },
+      {
+        signature: 'abstract locate(request: GstarSpatialLocateRequest): Promise<GstarSpatialSnapshot>',
+        description: 'Resolve a user-supplied station name and persist its marker and available boundary.',
+        parameters: [{ name: 'request', description: 'Station identity and geocoding query.' }],
+        returns: 'the committed immutable spatial projection.',
+      },
+      {
+        signature: 'abstract refreshAois(request: GstarSpatialRefreshAoisRequest): Promise<GstarSpatialSnapshot>',
+        description: 'Fetch current public AOIs for one station and replace its durable AOI publication.',
+        parameters: [{ name: 'request', description: 'Station identity whose resolved boundary or marker defines the query area.' }],
+        returns: 'the committed immutable spatial projection.',
+      },
+      {
+        signature: '@Remote(\'list\') remoteExportList(): Promise<readonly GstarSpatialSnapshot[]>',
+        description: 'Remote adapter for list.',
+        parameters: [],
+        returns: 'immutable station spatial projections.',
+      },
+      {
+        signature: '@Remote(\'patch\') remoteExportPatch(request: GstarSpatialPatchRequest): Promise<GstarSpatialSnapshot>',
+        description: 'Remote adapter for patch.',
+        parameters: [{ name: 'request', description: 'Spatial fields to commit for one station.' }],
+        returns: 'the committed spatial snapshot.',
+      },
+      {
+        signature: '@Remote(\'locate\') remoteExportLocate(request: GstarSpatialLocateRequest): Promise<GstarSpatialSnapshot>',
+        description: 'Remote adapter for locate.',
+        parameters: [{ name: 'request', description: 'Station identity and location query.' }],
+        returns: 'the committed spatial snapshot.',
+      },
+    ],
+  },
+  {
     key: 'invariants',
     summary: 'Package-owned invariant registry with global and regex-based selection.',
     description: 'Package-owned invariant registry with global and regex-based selection.',
@@ -3443,6 +3590,118 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'GrantRecord',
     declaration: 'export interface GrantRecord {\n    readonly kind: \'grant\';\n    readonly payload: unknown;\n}',
+  },
+  {
+    name: 'GstarAoiCategory',
+    declaration: 'export type GstarAoiCategory = \'政\' | \'企\' | \'金融\' | \'教育\' | \'医疗\' | \'商场\' | \'居民区\';',
+  },
+  {
+    name: 'GstarAoiGeometry',
+    declaration: 'export type GstarAoiGeometry = GstarPolygonGeometry | GstarMultiPolygonGeometry;',
+  },
+  {
+    name: 'GstarAoiSnapshot',
+    declaration: 'export interface GstarAoiSnapshot {\n    readonly id: string;\n    readonly name: string;\n    readonly category: GstarAoiCategory;\n    readonly geometry: GstarAoiGeometry;\n    readonly entities: readonly GstarEntitySnapshot[];\n    readonly provenance: readonly GstarProvenanceSnapshot[];\n    readonly updatedAt: string;\n}',
+  },
+  {
+    name: 'GstarCoordinate',
+    declaration: 'export interface GstarCoordinate {\n    readonly longitude: number;\n    readonly latitude: number;\n    readonly height?: number;\n}',
+  },
+  {
+    name: 'GstarDataSourceAccessMode',
+    declaration: 'export type GstarDataSourceAccessMode = \'direct\' | \'reference\';',
+  },
+  {
+    name: 'GstarDataSourceCapability',
+    declaration: 'export type GstarDataSourceCapability = \'aoi\' | \'entity\' | \'verification\';',
+  },
+  {
+    name: 'GstarDataSourceDescriptor',
+    declaration: 'export interface GstarDataSourceDescriptor {\n    readonly id: GstarDataSourceId;\n    readonly name: string;\n    readonly publisher: string;\n    readonly url: string;\n    readonly categories: readonly GstarAoiCategory[];\n    readonly capabilities: readonly GstarDataSourceCapability[];\n    readonly accessMode: GstarDataSourceAccessMode;\n    readonly license?: string;\n    readonly defaultEnabled: boolean;\n}',
+  },
+  {
+    name: 'GstarDataSourceListRequest',
+    declaration: 'export interface GstarDataSourceListRequest {\n    readonly workspaceId: WorkspaceId;\n}',
+  },
+  {
+    name: 'GstarDataSourceProvider',
+    declaration: 'export interface GstarDataSourceProvider {\n    readonly descriptor: GstarDataSourceDescriptor;\n    synchronize?(workspaceId: WorkspaceId): Promise<string>;\n}',
+  },
+  {
+    name: 'GstarDataSourceSetEnabledRequest',
+    declaration: 'export interface GstarDataSourceSetEnabledRequest {\n    readonly workspaceId: WorkspaceId;\n    readonly sourceId: GstarDataSourceId;\n    readonly enabled: boolean;\n}',
+  },
+  {
+    name: 'GstarDataSourceSnapshot',
+    declaration: 'export interface GstarDataSourceSnapshot {\n    readonly id: GstarDataSourceId;\n    readonly name: string;\n    readonly publisher: string;\n    readonly url: string;\n    readonly categories: readonly GstarAoiCategory[];\n    readonly capabilities: readonly GstarDataSourceCapability[];\n    readonly accessMode: GstarDataSourceAccessMode;\n    readonly license?: string;\n    readonly enabled: boolean;\n    readonly defaultEnabled: boolean;\n    readonly synchronizable: boolean;\n}',
+  },
+  {
+    name: 'GstarDataSourceSynchronizationSnapshot',
+    declaration: 'export interface GstarDataSourceSynchronizationSnapshot {\n    readonly workspaceId: WorkspaceId;\n    readonly sourceId: GstarDataSourceId;\n    readonly synchronizedAt: string;\n    readonly message: string;\n}',
+  },
+  {
+    name: 'GstarDataSourceSynchronizeRequest',
+    declaration: 'export interface GstarDataSourceSynchronizeRequest {\n    readonly workspaceId: WorkspaceId;\n    readonly sourceId: GstarDataSourceId;\n}',
+  },
+  {
+    name: 'GstarEntityFieldValue',
+    declaration: 'export type GstarEntityFieldValue = string | number | boolean | null;',
+  },
+  {
+    name: 'GstarEntitySnapshot',
+    declaration: 'export interface GstarEntitySnapshot {\n    readonly id: string;\n    readonly type: string;\n    readonly fields: Readonly<Record<string, GstarEntityFieldValue>>;\n}',
+  },
+  {
+    name: 'GstarLinearRing',
+    declaration: 'export type GstarLinearRing = readonly GstarCoordinate[];',
+  },
+  {
+    name: 'GstarMultiPolygonGeometry',
+    declaration: 'export interface GstarMultiPolygonGeometry {\n    readonly type: \'MultiPolygon\';\n    readonly coordinates: readonly (readonly GstarLinearRing[])[];\n}',
+  },
+  {
+    name: 'GstarPolygonGeometry',
+    declaration: 'export interface GstarPolygonGeometry {\n    readonly type: \'Polygon\';\n    readonly coordinates: readonly GstarLinearRing[];\n}',
+  },
+  {
+    name: 'GstarProvenanceSnapshot',
+    declaration: 'export interface GstarProvenanceSnapshot {\n    readonly sourceId: string;\n    readonly sourceName: string;\n    readonly sourceUrl?: string;\n    readonly retrievedAt: string;\n    readonly license?: string;\n    readonly checksum?: string;\n}',
+  },
+  {
+    name: 'GstarSiteCreateRequest',
+    declaration: 'export interface GstarSiteCreateRequest {\n    readonly path: string;\n    readonly title: string;\n}',
+  },
+  {
+    name: 'GstarSiteDeleteRequest',
+    declaration: 'export interface GstarSiteDeleteRequest {\n    readonly workspaceId: WorkspaceId;\n}',
+  },
+  {
+    name: 'GstarSiteDeletionParticipant',
+    declaration: 'export type GstarSiteDeletionParticipant = (workspaceId: WorkspaceId) => Promise<GstarSiteDeletionPreparation | void>;',
+  },
+  {
+    name: 'GstarSiteDeletionPreparation',
+    declaration: 'export interface GstarSiteDeletionPreparation {\n    commit(): void;\n    rollback(): Promise<void>;\n}',
+  },
+  {
+    name: 'GstarSiteSnapshot',
+    declaration: 'export interface GstarSiteSnapshot {\n    readonly workspaceId: WorkspaceId;\n    readonly path: string;\n    readonly title: string;\n    readonly sessionCount: number;\n    readonly createdAt: string;\n    readonly updatedAt: string;\n}',
+  },
+  {
+    name: 'GstarSpatialLocateRequest',
+    declaration: 'export interface GstarSpatialLocateRequest {\n    readonly workspaceId: WorkspaceId;\n    readonly query: string;\n}',
+  },
+  {
+    name: 'GstarSpatialPatchRequest',
+    declaration: 'export interface GstarSpatialPatchRequest {\n    readonly workspaceId: WorkspaceId;\n    readonly location?: GstarCoordinate;\n    readonly boundary?: GstarAoiGeometry | null;\n    readonly aois?: readonly GstarAoiSnapshot[];\n}',
+  },
+  {
+    name: 'GstarSpatialRefreshAoisRequest',
+    declaration: 'export interface GstarSpatialRefreshAoisRequest {\n    readonly workspaceId: WorkspaceId;\n}',
+  },
+  {
+    name: 'GstarSpatialSnapshot',
+    declaration: 'export interface GstarSpatialSnapshot {\n    readonly workspaceId: WorkspaceId;\n    readonly location?: GstarCoordinate;\n    readonly boundary?: GstarAoiGeometry;\n    readonly aois: readonly GstarAoiSnapshot[];\n    readonly updatedAt?: string;\n}',
   },
   {
     name: 'ImageAttachmentLimits',

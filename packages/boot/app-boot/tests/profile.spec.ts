@@ -8,6 +8,8 @@ import { lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import * as yaml from 'js-yaml'
+import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import {
   composeEntries,
   healProfilesModuleFallback,
@@ -152,6 +154,9 @@ describe('loadProfile', () => {
     // cannot be asserted to fail here: the source-plane test runner resolves
     // @deepseek-ai/* through tsconfig paths regardless of the staged anchor.
     expect(PROFILE_TEMPLATES.web).toContain('@deepseek-ai/dsh-base')
+    expect(PROFILE_TEMPLATES.gstar).toEqual([
+      '@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-gstar-app',
+    ])
     try {
       loadProfile('t', 'web', anchor, home)
     } catch {
@@ -208,6 +213,44 @@ describe('composeEntries', () => {
     expect(warnings.join('\n')).toContain('"missing"')
     // Default warn sink: skipped patches are silently dropped (boot repeats them).
     expect(composeEntries([[{ id: 'missing', config: {} }]])).toEqual([])
+  })
+
+  it('composes the GSTAR root and directory picker while retaining required settings services', () => {
+    const readBundlePatch = (relativeUrl: string) => {
+      const parsed = yaml.load(
+        readFileSync(new URL(relativeUrl, import.meta.url), 'utf8'),
+        { schema: entryListSchema },
+      )
+      if (!Array.isArray(parsed)) throw new TypeError(`${relativeUrl} must contain a patch list`)
+      return parsed
+    }
+    const warnings: string[] = []
+    const entries = composeEntries([
+      readBundlePatch('../../../bundle/base/cordis.patch.yml'),
+      readBundlePatch('../../../bundle/web-app/cordis.patch.yml'),
+      readBundlePatch('../../../bundle/gstar-app/cordis.patch.yml'),
+    ], message => warnings.push(message))
+    const byId = new Map(entries.map(entry => [entry.id, entry]))
+
+    expect(warnings).toEqual([])
+    expect(byId.get('ui-layout')).toMatchObject({
+      name: '@deepseek-ai/dsh-client-ui-layout',
+      disabled: true,
+    })
+    expect(byId.get('ui-gstar')).toMatchObject({
+      name: '@deepseek-ai/dsh-client-ui-gstar',
+    })
+    expect(byId.get('ui-gstar')?.disabled).not.toBe(true)
+    expect(byId.get('directory-picker')).toMatchObject({
+      name: '@deepseek-ai/dsh-host-directory-picker-auto',
+    })
+    expect(byId.get('directory-picker')?.disabled).not.toBe(true)
+    expect(byId.get('ui-workspace')?.disabled).toBe(true)
+    expect(byId.get('ui-settings')).toMatchObject({
+      name: '@deepseek-ai/dsh-client-ui-settings',
+    })
+    expect(byId.get('ui-settings')?.disabled).not.toBe(true)
+    expect(byId.get('ui-settings-general')?.disabled).toBe(true)
   })
 })
 

@@ -14,6 +14,20 @@ DeepSeek Harness 目前处于 _开发者预览_ 阶段，正在快速迭代。**
 
 ## 运行
 
+### 从本仓库运行 GSTAR Profile
+
+GSTAR 应用是随仓库交付的 DSH Profile。它保留标准 DSH Host、持久化、Agent、工具和浏览器插件运行时，再通过 `dsh-gstar-app` Bundle 替换 Web 的根 slot。
+
+```sh
+git clone https://github.com/6LiuYuling/Gstar_harness_base.git
+cd Gstar_harness_base
+pnpm install
+pnpm run build
+pnpm dsh gstar
+```
+
+该命令会在 `http://127.0.0.1:3080` 启动 GSTAR，并用默认浏览器打开。使用 `pnpm dsh gstar --no-open` 可只在前台运行服务器而不打开浏览器；使用 `pnpm dsh gstar --dump-config` 可在不启动应用的情况下检查完整 Cordis 插件树。
+
 ### 通过 `npm` 运行
 
 安装 `Node.js`，然后运行：

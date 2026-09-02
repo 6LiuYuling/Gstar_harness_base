@@ -57,6 +57,7 @@ import Lsp from '@deepseek-ai/dsh-lsp'
 import * as ToolLsp from '@deepseek-ai/dsh-tool-lsp'
 import * as ToolSkill from '@deepseek-ai/dsh-tool-skill'
 import * as ToolSessionQuery from '@deepseek-ai/dsh-tool-session-query'
+import * as ToolGstarSpatialQuery from '@deepseek-ai/dsh-gstar-tool-spatial-query'
 import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
 import type TeamService from '@deepseek-ai/dsh-experimental-agent-team'
 import * as ToolTeam from '@deepseek-ai/dsh-experimental-tool-agent-team'
@@ -437,6 +438,19 @@ const TOOL_PACKAGES: ToolPackage[] = [
       })
       await ctx.plugin(ToolSkill)
     },
+  },
+  {
+    pkg: '@deepseek-ai/dsh-gstar-tool-spatial-query',
+    dir: 'tool-spatial-query',
+    source: 'packages/gstar/tool-spatial-query/src/index.ts',
+    requires: ['ctx.tools', 'ctx.gstarSites', 'ctx.gstarSpatial', 'a calling station Agent'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      ctx.provide('gstarSites', {} as never)
+      ctx.provide('gstarSpatial', {} as never)
+      await ctx.plugin(ToolGstarSpatialQuery)
+    },
+    note: 'The model never supplies station identity; execution resolves the exact station from the calling Session cwd.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-session-query',

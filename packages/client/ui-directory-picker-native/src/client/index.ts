@@ -1,6 +1,6 @@
 /**
- * Browser half of the native directory-picker backend: fills ui-workspace's
- * two directory-flow holes with a renderless occupant that answers each
+ * Browser half of the native directory-picker backend: fills the two standard
+ * Workspace directory-flow holes with a renderless occupant that answers each
  * `open` by driving `host.pickDirectory` (the node half's OS chooser) and
  * reporting the one outcome — picked path, cancellation, or failure — back
  * through the owner conversation. Mounting this package therefore composes
@@ -8,7 +8,7 @@
  * code branches on a capability kind.
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-// Type-only: pulls the SlotMap merge declaring the directory-flow holes.
+// Type-only: pulls the shared SlotMap merge declaring the directory-flow holes.
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { NativeFlowInjected } from './flow.ts'
 import { NativeDirectoryFlow } from './flow.ts'
@@ -19,8 +19,8 @@ export const inject = ['slots', 'workspaces']
 
 /**
  * Client plugin body: register the renderless native flow into both
- * directory-flow holes through `slots.inject()` because the ui-workspace
- * entries may activate later or replace their declarations.
+ * directory-flow holes through `slots.inject()` because their Web or
+ * product-shell owner may activate later or replace its declarations.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {

@@ -706,6 +706,94 @@ export interface Config {
 
 来源：[`packages/goal/goal/src/index.ts:116`](../packages/goal/goal/src/index.ts)
 
+<a id="deepseek-aidsh-gstar-data-source-akshare"></a>
+
+## `@deepseek-ai/dsh-gstar-data-source-akshare`
+
+需要：`gstarDataSources` · `gstarSites` · `gstarSpatial` · `subprocess`
+
+```ts config-catalog
+/** Deployment controls for the bundled AKShare bridge process. */
+export interface Config {
+  /** Python executable resolved through the active subprocess Provider. */
+  pythonExecutable: string
+  /** PEM CA bundle passed to Python Requests; empty preserves its inherited trust configuration. */
+  caBundlePath: string
+  /** Disable certificate and hostname verification inside the isolated bridge child. */
+  insecureSkipTlsVerify: boolean
+  /** Persistent AKShare/CNInfo CSV read before any remote request; empty disables local lookup. */
+  profileDatabasePath: string
+  /** Maximum retries after each transient upstream request failure. */
+  requestMaxRetries: number
+  /** Delay in milliseconds between upstream request attempts. */
+  requestRetryDelayMilliseconds: number
+  /** Maximum matched company profiles requested in one station synchronization. */
+  maxProfiles: number
+  /** Complete bridge deadline in milliseconds. */
+  timeoutMilliseconds: number
+  /** Per-stream in-memory collection limit in bytes. */
+  maxOutputBytes: number
+}
+```
+
+来源：[`packages/gstar/data-source-akshare/src/index.ts:23`](../packages/gstar/data-source-akshare/src/index.ts)
+
+<a id="deepseek-aidsh-gstar-data-source-reference"></a>
+
+## `@deepseek-ai/dsh-gstar-data-source-reference`
+
+需要：`gstarDataSources`
+
+```ts config-catalog
+/** Configuration for one authoritative public reference plugin instance. */
+export interface Config {
+  /** Stable source identity. */
+  id: string
+  /** Human-readable platform or dataset name. */
+  name: string
+  /** Publishing organization. */
+  publisher: string
+  /** Public platform entry point. */
+  url: string
+  /** GSTAR categories verified by this reference. */
+  categories: GstarAoiCategory[]
+  /** Whether newly classified stations admit this reference before an explicit override. */
+  defaultEnabled: boolean
+}
+```
+
+依赖：[`GstarAoiCategory`](subsystems/gstar.zh.md)
+
+来源：[`packages/gstar/data-source-reference/src/index.ts:14`](../packages/gstar/data-source-reference/src/index.ts)
+
+<a id="deepseek-aidsh-gstar-spatial-storage"></a>
+
+## `@deepseek-ai/dsh-gstar-spatial-storage`
+
+需要：`storageDomain` · `gstarSites` · `web`
+
+```ts config-catalog
+/** Provider configuration for bounded public OpenStreetMap acquisition. */
+export interface Config {
+  /** Overpass interpreter endpoint used for direct AOI acquisition. */
+  overpassEndpoint?: string
+  /** Overpass server-side query timeout in seconds. */
+  overpassTimeoutSeconds?: number
+  /** Maximum elements per Overpass request before the bounds are subdivided. */
+  overpassMaxElements?: number
+  /** Minimum pause after one Overpass response before the next request starts. */
+  overpassRequestIntervalMilliseconds?: number
+  /** Initial pause after HTTP 429; each subsequent retry doubles this value. */
+  overpassRetryDelayMilliseconds?: number
+  /** Number of retries after an Overpass HTTP 429 response. */
+  overpassMaxRetries?: number
+  /** Search radius used when a station has a marker but no boundary. */
+  fallbackRadiusMeters?: number
+}
+```
+
+来源：[`packages/gstar/spatial-storage/src/index.ts:43`](../packages/gstar/spatial-storage/src/index.ts)
+
 <a id="deepseek-aidsh-headless"></a>
 
 ## `@deepseek-ai/dsh-headless`
@@ -3209,6 +3297,7 @@ export interface Config {
 - `@deepseek-ai/dsh-client-ui-directory-picker-browse`（[`packages/client/ui-directory-picker-browse/src/index.ts`](../packages/client/ui-directory-picker-browse/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-directory-picker-native`（[`packages/client/ui-directory-picker-native/src/index.ts`](../packages/client/ui-directory-picker-native/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-goal`（[`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts)）
+- `@deepseek-ai/dsh-client-ui-gstar`（[`packages/client/ui-gstar/src/index.ts`](../packages/client/ui-gstar/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-input-trigger`（[`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-jobs`（[`packages/client/ui-jobs/src/index.ts`](../packages/client/ui-jobs/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-layout`（[`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts)）
@@ -3240,6 +3329,12 @@ export interface Config {
 - `@deepseek-ai/dsh-fs-e2b` — 需要 `e2b`（[`packages/e2b/fs-e2b/src/index.ts`](../packages/e2b/fs-e2b/src/index.ts)）
 - `@deepseek-ai/dsh-fs-observation-policy`（[`packages/fs/fs-observation-policy/src/index.ts`](../packages/fs/fs-observation-policy/src/index.ts)）
 - `@deepseek-ai/dsh-goal-round-driver` — 需要 `agents` · `goals` · `sessions`（[`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-cesium-assets` — 需要 `webServer`（[`packages/gstar/cesium-assets/src/index.ts`](../packages/gstar/cesium-assets/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-client-remotes`（[`packages/gstar/client-remotes/src/index.ts`](../packages/gstar/client-remotes/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-data-source-osm` — 需要 `gstarDataSources` · `gstarSpatial`（[`packages/gstar/data-source-osm/src/index.ts`](../packages/gstar/data-source-osm/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-data-source-storage` — 需要 `storageDomain` · `gstarSites`（[`packages/gstar/data-source-storage/src/index.ts`](../packages/gstar/data-source-storage/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-site-workspace` — 需要 `workspaceRegistry` · `storageDomain`（[`packages/gstar/site-workspace/src/index.ts`](../packages/gstar/site-workspace/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-tool-spatial-query` — 需要 `tools` · `gstarSites` · `gstarSpatial`（[`packages/gstar/tool-spatial-query/src/index.ts`](../packages/gstar/tool-spatial-query/src/index.ts)）
 - `@deepseek-ai/dsh-host-directory-picker-auto` — 需要 `webServer` · `loader`（[`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts)）
 - `@deepseek-ai/dsh-host-directory-picker-native`（[`packages/host/directory-picker-native/src/index.ts`](../packages/host/directory-picker-native/src/index.ts)）
 - `@deepseek-ai/dsh-host-plugin-inventory` — 需要 `loader`（[`packages/host/plugin-inventory/src/index.ts`](../packages/host/plugin-inventory/src/index.ts)）
@@ -3273,6 +3368,9 @@ export interface Config {
 - `@deepseek-ai/dsh-credentials` — 抽象 `Credentials`（[`packages/credentials/credentials/src/index.ts`](../packages/credentials/credentials/src/index.ts)）
 - `@deepseek-ai/dsh-file-reference` — 抽象 `FileReferenceService`（[`packages/context/file-reference/src/index.ts`](../packages/context/file-reference/src/index.ts)）
 - `@deepseek-ai/dsh-fs` — 抽象 `FileSystem`（[`packages/fs/fs/src/index.ts`](../packages/fs/fs/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-data-source` — 抽象 `GstarDataSourceService`（[`packages/gstar/data-source/src/index.ts`](../packages/gstar/data-source/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-site` — 抽象 `GstarSiteService`（[`packages/gstar/site/src/index.ts`](../packages/gstar/site/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-spatial` — 抽象 `GstarSpatialService`（[`packages/gstar/spatial/src/index.ts`](../packages/gstar/spatial/src/index.ts)）
 - `@deepseek-ai/dsh-host-directory-picker` — 抽象 `DirectoryPicker`（[`packages/host/directory-picker/src/index.ts`](../packages/host/directory-picker/src/index.ts)）
 - `@deepseek-ai/dsh-jobs` — 抽象 `JobRegistry`（[`packages/jobs/jobs/src/index.ts`](../packages/jobs/jobs/src/index.ts)）
 - `@deepseek-ai/dsh-sandbox` — 抽象 `SandboxProvider`（[`packages/sandbox/sandbox/src/index.ts`](../packages/sandbox/sandbox/src/index.ts)）
@@ -3300,6 +3398,7 @@ export interface Config {
 - `@deepseek-ai/dsh-client-web`（[`packages/client/web/src/index.ts`](../packages/client/web/src/index.ts)）
 - `@deepseek-ai/dsh-cmdline`（[`packages/boot/cmdline/src/index.ts`](../packages/boot/cmdline/src/index.ts)）
 - `@deepseek-ai/dsh-code-runtime-python`（[`packages/code-runtime/code-runtime-python/src/index.ts`](../packages/code-runtime/code-runtime-python/src/index.ts)）
+- `@deepseek-ai/dsh-gstar-app`（[`packages/bundle/gstar-app/src/index.ts`](../packages/bundle/gstar-app/src/index.ts)）
 - `@deepseek-ai/dsh-home-paths`（[`packages/util/home-paths/src/index.ts`](../packages/util/home-paths/src/index.ts)）
 - `@deepseek-ai/dsh-hook-protocol`（[`packages/hooks/hook-protocol/src/index.ts`](../packages/hooks/hook-protocol/src/index.ts)）
 - `@deepseek-ai/dsh-launch-environment`（[`packages/util/launch-environment/src/index.ts`](../packages/util/launch-environment/src/index.ts)）
