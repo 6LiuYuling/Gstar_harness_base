@@ -12,6 +12,9 @@ import css from './CesiumGlobe.module.css'
 const CESIUM_ASSET_BASE = '/gstar/cesium/'
 const CESIUM_WIDGET_STYLES = `${CESIUM_ASSET_BASE}Widgets/widgets.css`
 const AOI_SURFACE_HEIGHT_METERS = 24
+const INITIAL_CAMERA_LONGITUDE = 104
+const INITIAL_CAMERA_LATITUDE = 35
+const INITIAL_CAMERA_HEIGHT_METERS = 16_000_000
 
 type CesiumModule = typeof Cesium
 type CesiumBuildModuleUrl = typeof Cesium.buildModuleUrl & { setBaseUrl(value: string): void }
@@ -132,6 +135,15 @@ export function CesiumGlobe(props: CesiumGlobeProps) {
       })
       viewer = createdViewer
       createdViewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#050a10')
+      createdViewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(
+          INITIAL_CAMERA_LONGITUDE,
+          INITIAL_CAMERA_LATITUDE,
+          INITIAL_CAMERA_HEIGHT_METERS,
+        ),
+        orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
+      })
+      createdViewer.scene.requestRender()
       const picks = new Map<string, GlobePick>()
       const createdHandler = new Cesium.ScreenSpaceEventHandler(createdViewer.scene.canvas)
       handler = createdHandler

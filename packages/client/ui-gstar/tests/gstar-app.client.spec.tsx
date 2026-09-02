@@ -27,6 +27,7 @@ vi.mock('cesium', () => {
   class MockViewer {
     public readonly entityItems: Array<Record<string, unknown>> = []
     public readonly flyCalls: unknown[][] = []
+    public readonly setViewCalls: unknown[] = []
     public readonly morphs: string[] = []
     public pickResult: unknown
     public destroyed = false
@@ -37,6 +38,9 @@ vi.mock('cesium', () => {
         return entity
       },
       removeAll: () => { this.entityItems.length = 0 },
+    }
+    public readonly camera = {
+      setView: (input: unknown) => { this.setViewCalls.push(input) },
     }
     public readonly scene = {
       globe: { baseColor: undefined as unknown },
@@ -775,6 +779,7 @@ describe('GstarApp three-column shell', () => {
             }
           }>
           readonly flyCalls: unknown[][]
+          readonly setViewCalls: unknown[]
           readonly morphs: string[]
           pickResult: unknown
           destroyed: boolean
@@ -837,6 +842,10 @@ describe('GstarApp three-column shell', () => {
         .toHaveLength(categories.length)
     })
     const viewer = __mockState.viewers[0]!
+    expect(viewer.setViewCalls).toEqual([{
+      destination: [104, 35, 16_000_000],
+      orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
+    }])
     const renderedAois = viewer.entityItems.filter(entity => entity.id?.startsWith('gstar-aoi-'))
     expect(renderedAois.every(entity => entity.polygon?.height === 24)).toBe(true)
     expect(renderedAois[0]?.polygon).toMatchObject({
